@@ -372,6 +372,17 @@ export type Database = {
         Args: { object_name: string };
         Returns: string;
       };
+      get_occupied_intervals: {
+        Args: {
+          p_business_id: string;
+          p_start_at: string;
+          p_end_at: string;
+        };
+        Returns: {
+          start_at: string;
+          end_at: string;
+        }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

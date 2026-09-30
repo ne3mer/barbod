@@ -106,28 +106,21 @@ export async function createPublicBookingAction(data: PublicBookingInput) {
     return { error: "Cannot book an appointment in the past." };
   }
 
-  // Check appointment overlaps
-  const { data: activeApps } = await supabase
-    .from("appointments")
-    .select("start_at, end_at")
-    .eq("business_id", business.id)
-    .in("status", ["pending", "confirmed"])
-    .lt("start_at", endIso)
-    .gt("end_at", startIso);
+  // Check occupied intervals (active appointments & blocked times) via SECURITY DEFINER RPC
+  const { data: occupied, error: rpcErr } = await supabase.rpc(
+    "get_occupied_intervals",
+    {
+      p_business_id: business.id,
+      p_start_at: startIso,
+      p_end_at: endIso,
+    }
+  );
 
-  if (activeApps && activeApps.length > 0) {
-    return { error: "This time is no longer available. Please choose another time." };
+  if (rpcErr) {
+    console.error("RPC re-check error", rpcErr.message);
   }
 
-  // Check blocked times overlaps
-  const { data: blockedTimes } = await supabase
-    .from("blocked_times")
-    .select("start_at, end_at")
-    .eq("business_id", business.id)
-    .lt("start_at", endIso)
-    .gt("end_at", startIso);
-
-  if (blockedTimes && blockedTimes.length > 0) {
+  if (occupied && occupied.length > 0) {
     return { error: "This time is no longer available. Please choose another time." };
   }
 

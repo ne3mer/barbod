@@ -24,6 +24,10 @@ export type CalculateSlotsParams = {
  * Calculates available booking slots for a given business, service, and date.
  * Fully accounts for working hours, multiple intervals, service duration,
  * existing active appointments (pending/confirmed), blocked times, and past times.
+ *
+ * Uses the SECURITY DEFINER PostgreSQL RPC `get_occupied_intervals` so that public/anon
+ * users can accurately determine slot availability without exposing private customer PII,
+ * notes, or blocked-time details over RLS.
  */
 export async function calculateAvailableSlots({
   businessId,
@@ -48,7 +52,6 @@ export async function calculateAvailableSlots({
   const durationMinutes = service.duration_minutes;
 
   // 2. Determine day of week for dateStr in Europe/Budapest
-  // Construct a noon UTC timestamp for the date string to get correct day of week
   const sampleUtc = budapestDateTimeToUtc(dateStr, "12:00");
   const dayParts = utcToBudapestParts(sampleUtc);
   const dayOfWeek = dayParts.dayOfWeek;
@@ -66,40 +69,32 @@ export async function calculateAvailableSlots({
     return []; // Business closed on this day
   }
 
-  // 4. Fetch existing active appointments (pending & confirmed) for dateStr
+  // 4. Fetch occupied intervals (active appointments & blocked times) via SECURITY DEFINER RPC
   const dayStartUtc = budapestDateTimeToUtc(dateStr, "00:00");
   const dayEndUtc = budapestDateTimeToUtc(dateStr, "23:59");
 
-  const { data: appointments } = await supabase
-    .from("appointments")
-    .select("start_at, end_at, status")
-    .eq("business_id", businessId)
-    .in("status", ["pending", "confirmed"])
-    .lt("start_at", dayEndUtc.toISOString())
-    .gt("end_at", dayStartUtc.toISOString());
+  const { data: occupiedIntervals, error: rpcError } = await supabase.rpc(
+    "get_occupied_intervals",
+    {
+      p_business_id: businessId,
+      p_start_at: dayStartUtc.toISOString(),
+      p_end_at: dayEndUtc.toISOString(),
+    }
+  );
 
-  // 5. Fetch blocked times for dateStr
-  const { data: blockedTimes } = await supabase
-    .from("blocked_times")
-    .select("start_at, end_at")
-    .eq("business_id", businessId)
-    .lt("start_at", dayEndUtc.toISOString())
-    .gt("end_at", dayStartUtc.toISOString());
+  if (rpcError) {
+    console.error("Failed to fetch occupied intervals via RPC", rpcError.message);
+  }
 
-  const activeApps = (appointments ?? []).map((a) => ({
-    start: new Date(a.start_at),
-    end: new Date(a.end_at),
-  }));
-
-  const activeBlocks = (blockedTimes ?? []).map((b) => ({
-    start: new Date(b.start_at),
-    end: new Date(b.end_at),
+  const occupiedList = (occupiedIntervals ?? []).map((row) => ({
+    start: new Date(row.start_at),
+    end: new Date(row.end_at),
   }));
 
   const now = new Date();
   const slots: AvailableSlot[] = [];
 
-  // 6. Iterate through working hour intervals for the day
+  // 5. Iterate through working hour intervals for the day
   for (const interval of workingHours) {
     const intervalStartMins = timeStringToMinutes(interval.start_time);
     const intervalEndMins = timeStringToMinutes(interval.end_time);
@@ -119,20 +114,10 @@ export async function calculateAvailableSlots({
       // Check Past Time (must be strictly in future)
       let isValid = candidateStartUtc.getTime() > now.getTime();
 
-      // Check existing appointments overlap
+      // Check occupied intervals overlap (appointments + blocked times)
       if (isValid) {
-        for (const app of activeApps) {
-          if (isOverlapping(candidateStartUtc, candidateEndUtc, app.start, app.end)) {
-            isValid = false;
-            break;
-          }
-        }
-      }
-
-      // Check blocked times overlap
-      if (isValid) {
-        for (const block of activeBlocks) {
-          if (isOverlapping(candidateStartUtc, candidateEndUtc, block.start, block.end)) {
+        for (const occ of occupiedList) {
+          if (isOverlapping(candidateStartUtc, candidateEndUtc, occ.start, occ.end)) {
             isValid = false;
             break;
           }
