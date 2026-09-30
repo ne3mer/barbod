@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { getAdminContext } from "@/lib/auth/session";
 
 export type BarberInput = {
   name: string;
@@ -12,15 +12,16 @@ export type BarberInput = {
   is_active?: boolean;
   display_order?: number;
   serviceIds?: string[];
+  user_id?: string | null;
 };
 
 export async function createBarberAction(input: BarberInput) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "Unauthorized: Business not found." };
+  const context = await getAdminContext();
+  if (!context || context.role !== "owner") {
+    return { error: "Unauthorized: Owner access required." };
   }
+
+  const business = context.business;
 
   if (!input.name?.trim()) {
     return { error: "Barber name is required." };
@@ -33,6 +34,7 @@ export async function createBarberAction(input: BarberInput) {
     .from("barbers")
     .insert({
       business_id: business.id,
+      user_id: input.user_id || null,
       name: input.name.trim(),
       profile_photo_url: input.profile_photo_url?.trim() || null,
       bio_en: input.bio_en?.trim() || null,
@@ -70,30 +72,63 @@ export async function createBarberAction(input: BarberInput) {
 }
 
 export async function updateBarberAction(id: string, input: BarberInput) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "Unauthorized: Business not found." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
+
+  const supabase = await createClient();
+
+  // Staff can update their own profile fields via staff profile route
+  if (context.role === "staff") {
+    if (id !== context.barber?.id) {
+      return { error: "Unauthorized: You can only update your own profile." };
+    }
+    const { error } = await supabase
+      .from("barbers")
+      .update({
+        name: input.name.trim(),
+        profile_photo_url: input.profile_photo_url?.trim() || null,
+        bio_en: input.bio_en?.trim() || null,
+        bio_hu: input.bio_hu?.trim() || null,
+      })
+      .eq("id", id)
+      .eq("business_id", context.business.id);
+
+    if (error) return { error: "Failed to update profile." };
+    revalidatePath("/admin/profile");
+    revalidatePath("/admin/barbers");
+    revalidatePath("/");
+    return { success: true };
+  }
+
+  if (context.role !== "owner") {
+    return { error: "Unauthorized: Owner access required." };
+  }
+
+  const business = context.business;
 
   if (!input.name?.trim()) {
     return { error: "Barber name is required." };
   }
 
-  const supabase = await createClient();
-
   // 1. Update Barber row
+  const updateData: Record<string, unknown> = {
+    name: input.name.trim(),
+    profile_photo_url: input.profile_photo_url?.trim() || null,
+    bio_en: input.bio_en?.trim() || null,
+    bio_hu: input.bio_hu?.trim() || null,
+    is_active: input.is_active ?? true,
+    display_order: input.display_order ?? 0,
+  };
+
+  if (input.user_id !== undefined) {
+    updateData.user_id = input.user_id || null;
+  }
+
   const { error } = await supabase
     .from("barbers")
-    .update({
-      name: input.name.trim(),
-      profile_photo_url: input.profile_photo_url?.trim() || null,
-      bio_en: input.bio_en?.trim() || null,
-      bio_hu: input.bio_hu?.trim() || null,
-      is_active: input.is_active ?? true,
-      display_order: input.display_order ?? 0,
-    })
+    .update(updateData)
     .eq("id", id)
     .eq("business_id", business.id);
 
@@ -123,14 +158,48 @@ export async function updateBarberAction(id: string, input: BarberInput) {
   return { success: true };
 }
 
-export async function toggleBarberActiveAction(id: string, is_active: boolean) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
 
-  if (!business) {
+export async function linkBarberUserAction(barberId: string, targetUserId: string) {
+  const context = await getAdminContext();
+  if (!context || context.role !== "owner") {
+    return { error: "Unauthorized: Owner access required." };
+  }
+
+  const supabase = await createClient();
+
+  // Ensure target user is not already linked to another barber
+  const { data: existing } = await supabase
+    .from("barbers")
+    .select("id, name")
+    .eq("user_id", targetUserId.trim())
+    .neq("id", barberId)
+    .maybeSingle();
+
+  if (existing) {
+    return { error: `User ID is already linked to ${existing.name}.` };
+  }
+
+  const { error } = await supabase
+    .from("barbers")
+    .update({ user_id: targetUserId.trim() || null })
+    .eq("id", barberId)
+    .eq("business_id", context.business.id);
+
+  if (error) {
+    return { error: `Failed to link account: ${error.message}` };
+  }
+
+  revalidatePath("/admin/barbers");
+  return { success: true };
+}
+
+export async function toggleBarberActiveAction(id: string, is_active: boolean) {
+  const context = await getAdminContext();
+  if (!context || context.role !== "owner") {
     return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
   const { error } = await supabase
     .from("barbers")
@@ -151,13 +220,12 @@ export async function toggleBarberActiveAction(id: string, is_active: boolean) {
 }
 
 export async function deleteBarberAction(id: string) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
+  const context = await getAdminContext();
+  if (!context || context.role !== "owner") {
     return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
   const { error } = await supabase
     .from("barbers")
@@ -179,13 +247,12 @@ export async function deleteBarberAction(id: string) {
 }
 
 export async function uploadBarberProfilePhotoAction(formData: FormData) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "Unauthorized: Business not found." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const file = formData.get("file") as File | null;
   const barberId = formData.get("barberId") as string | null;
 
@@ -193,8 +260,12 @@ export async function uploadBarberProfilePhotoAction(formData: FormData) {
     return { error: "File and Barber ID are required." };
   }
 
+  if (context.role === "staff" && barberId !== context.barber?.id) {
+    return { error: "Unauthorized: You can only upload your own profile photo." };
+  }
+
   // 1. Validate file size (<= 5 MB)
-  const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+  const MAX_SIZE = 5 * 1024 * 1024;
   if (file.size > MAX_SIZE) {
     return { error: "File size exceeds maximum limit of 5 MB." };
   }
@@ -270,6 +341,7 @@ export async function uploadBarberProfilePhotoAction(formData: FormData) {
   }
 
   revalidatePath("/admin/barbers");
+  revalidatePath("/admin/profile");
   revalidatePath("/admin/appointments");
   revalidatePath("/");
   revalidatePath("/book");
@@ -278,11 +350,15 @@ export async function uploadBarberProfilePhotoAction(formData: FormData) {
 }
 
 export async function deleteBarberProfilePhotoAction(barberId: string) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
+  const context = await getAdminContext();
+  if (!context) {
     return { error: "Unauthorized." };
+  }
+
+  const business = context.business;
+
+  if (context.role === "staff" && barberId !== context.barber?.id) {
+    return { error: "Unauthorized: You can only remove your own profile photo." };
   }
 
   const supabase = await createClient();
@@ -312,6 +388,14 @@ export async function deleteBarberProfilePhotoAction(barberId: string) {
   if (updateErr) {
     return { error: "Failed to remove photo URL." };
   }
+
+  revalidatePath("/admin/barbers");
+  revalidatePath("/admin/profile");
+  revalidatePath("/");
+
+  return { success: true };
+}
+
 
   revalidatePath("/admin/barbers");
   revalidatePath("/admin/appointments");

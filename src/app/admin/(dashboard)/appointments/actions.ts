@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { getAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import {
   budapestDateTimeToUtc,
@@ -23,11 +23,19 @@ export type AppointmentInput = {
 };
 
 export async function createAppointmentAction(data: AppointmentInput) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
+  }
 
-  if (!business) {
-    return { error: "No business linked to account." };
+  const business = context.business;
+
+  // If staff, force barber_id to be context.barber.id
+  if (context.role === "staff") {
+    if (!context.barber) {
+      return { error: "Staff barber profile not found." };
+    }
+    data.barber_id = context.barber.id;
   }
 
   if (!data.barber_id) {
@@ -183,14 +191,26 @@ export async function updateAppointmentStatusAction(
   id: string,
   status: AppointmentStatus
 ) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "No business linked to account." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
+
+  // If staff, verify target appointment belongs to staff barber
+  if (context.role === "staff") {
+    const { data: targetApp } = await supabase
+      .from("appointments")
+      .select("barber_id")
+      .eq("id", id)
+      .single();
+
+    if (!targetApp || targetApp.barber_id !== context.barber?.id) {
+      return { error: "Unauthorized: You can only manage your own appointments." };
+    }
+  }
 
   const { error } = await supabase
     .from("appointments")
@@ -215,13 +235,12 @@ export async function rescheduleAppointmentAction(
   service_id?: string,
   barber_id?: string
 ) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "No business linked to account." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
 
   const { data: app, error: appErr } = await supabase
@@ -233,6 +252,14 @@ export async function rescheduleAppointmentAction(
 
   if (appErr || !app) {
     return { error: "Appointment not found." };
+  }
+
+  // If staff, enforce target barber to be staff's own barber_id
+  if (context.role === "staff") {
+    if (app.barber_id !== context.barber?.id) {
+      return { error: "Unauthorized: You can only reschedule your own appointments." };
+    }
+    barber_id = context.barber.id;
   }
 
   const targetBarberId = barber_id || app.barber_id;
@@ -337,14 +364,25 @@ export async function rescheduleAppointmentAction(
 }
 
 export async function deleteAppointmentAction(id: string) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "No business linked to account." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
+
+  if (context.role === "staff") {
+    const { data: targetApp } = await supabase
+      .from("appointments")
+      .select("barber_id")
+      .eq("id", id)
+      .single();
+
+    if (!targetApp || targetApp.barber_id !== context.barber?.id) {
+      return { error: "Unauthorized: You can only delete your own appointments." };
+    }
+  }
 
   const { error } = await supabase
     .from("appointments")
@@ -361,3 +399,4 @@ export async function deleteAppointmentAction(id: string) {
   revalidatePath("/admin");
   return { success: true };
 }
+

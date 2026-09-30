@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { getAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { budapestDateTimeToUtc } from "@/lib/utils/dates";
 
@@ -15,18 +15,24 @@ export type BlockedTimeInput = {
 };
 
 export async function createBlockedTimeAction(data: BlockedTimeInput) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
+  }
 
-  if (!business) {
-    return { error: "No business linked to user account." };
+  const business = context.business;
+  const supabase = await createClient();
+
+  if (context.role === "staff") {
+    if (!context.barber) {
+      return { error: "Staff barber profile not found." };
+    }
+    data.barber_id = context.barber.id;
   }
 
   if (!data.startDate || !data.startTime || !data.endDate || !data.endTime) {
     return { error: "Start date, start time, end date, and end time are required." };
   }
-
-  const supabase = await createClient();
 
   // Determine barber_id
   let barberId = data.barber_id;
@@ -73,11 +79,25 @@ export async function updateBlockedTimeAction(
   id: string,
   data: BlockedTimeInput
 ) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
+  }
 
-  if (!business) {
-    return { error: "No business linked to user account." };
+  const business = context.business;
+  const supabase = await createClient();
+
+  if (context.role === "staff") {
+    const { data: targetBt } = await supabase
+      .from("blocked_times")
+      .select("barber_id")
+      .eq("id", id)
+      .single();
+
+    if (!targetBt || targetBt.barber_id !== context.barber?.id) {
+      return { error: "Unauthorized: You can only edit your own blocked times." };
+    }
+    data.barber_id = context.barber.id;
   }
 
   const startUtc = budapestDateTimeToUtc(data.startDate, data.startTime);
@@ -86,8 +106,6 @@ export async function updateBlockedTimeAction(
   if (startUtc >= endUtc) {
     return { error: "Start date/time must be strictly earlier than end date/time." };
   }
-
-  const supabase = await createClient();
 
   const updateData: {
     start_at: string;
@@ -121,14 +139,25 @@ export async function updateBlockedTimeAction(
 }
 
 export async function deleteBlockedTimeAction(id: string) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "No business linked to user account." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
+
+  if (context.role === "staff") {
+    const { data: targetBt } = await supabase
+      .from("blocked_times")
+      .select("barber_id")
+      .eq("id", id)
+      .single();
+
+    if (!targetBt || targetBt.barber_id !== context.barber?.id) {
+      return { error: "Unauthorized: You can only delete your own blocked times." };
+    }
+  }
 
   const { error } = await supabase
     .from("blocked_times")
@@ -145,3 +174,4 @@ export async function deleteBlockedTimeAction(id: string) {
   revalidatePath("/admin");
   return { success: true };
 }
+

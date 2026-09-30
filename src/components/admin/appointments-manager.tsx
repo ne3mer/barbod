@@ -403,146 +403,160 @@ export function AppointmentsManager({
 
       {/* DAY VIEW — MULTI-BARBER COLUMN CALENDAR */}
       {viewMode === "day" && (
-        <div className="rounded-sm border border-border bg-card overflow-hidden shadow-xl">
-          {/* Calendar Header Columns */}
-          <div
-            className="grid border-b border-border bg-muted/40 divide-x divide-border"
-            style={{
-              gridTemplateColumns: `60px repeat(${displayedBarbers.length}, minmax(180px, 1fr))`,
-            }}
-          >
-            <div className="p-3 text-center text-[10px] font-mono text-muted-foreground uppercase tracking-widest font-semibold flex items-center justify-center">
-              TIME
-            </div>
-            {displayedBarbers.map((barber) => (
-              <div key={barber.id} className="p-3 text-center flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <div className="size-7 rounded-full overflow-hidden border border-border bg-muted shrink-0">
-                    {barber.profile_photo_url ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={barber.profile_photo_url} alt={barber.name} className="size-full object-cover" />
-                    ) : (
-                      <User className="size-4 text-muted-foreground m-1" />
-                    )}
-                  </div>
-                  <span className="font-serif font-semibold text-sm text-foreground truncate">
-                    {barber.name}
-                  </span>
+        <div className="rounded-sm border border-border bg-card shadow-xl overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin">
+            <div className="min-w-[650px] lg:min-w-full">
+              {/* Calendar Header Columns */}
+              <div
+                className="grid border-b border-border bg-muted/90 backdrop-blur-md divide-x divide-border sticky top-0 z-20 shadow-xs"
+                style={{
+                  gridTemplateColumns: `64px repeat(${displayedBarbers.length}, minmax(180px, 1fr))`,
+                }}
+              >
+                <div className="p-3 text-center text-[10px] font-mono text-muted-foreground uppercase tracking-widest font-semibold flex items-center justify-center">
+                  TIME
                 </div>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => handleOpenCreate(barber.id)}
-                  className="h-6 w-6 p-0 hover:bg-primary/10 hover:text-primary"
-                  title={`Book for ${barber.name}`}
-                >
-                  <Plus className="size-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          {/* Time Rows & Appointment Tiles */}
-          <div className="divide-y divide-border/60 max-h-[700px] overflow-y-auto">
-            {HOURS_GRID.map((hour) => {
-              const hourStr = `${String(hour).padStart(2, "0")}:00`;
-
-              return (
-                <div
-                  key={hour}
-                  className="grid divide-x divide-border/60 min-h-[72px]"
-                  style={{
-                    gridTemplateColumns: `60px repeat(${displayedBarbers.length}, minmax(180px, 1fr))`,
-                  }}
-                >
-                  {/* Time label */}
-                  <div className="p-2 text-[11px] font-mono text-muted-foreground text-center font-semibold bg-muted/10 shrink-0">
-                    {hourStr}
-                  </div>
-
-                  {/* Barber Slots Column */}
-                  {displayedBarbers.map((barber) => {
-                    // Find appointments matching date, barber, and starting in this hour
-                    const cellApps = filteredAppointments.filter((app) => {
-                      if (app.barber_id !== barber.id) return false;
-                      const parts = utcToBudapestParts(app.start_at);
-                      if (parts.dateStr !== currentDate) return false;
-                      const appHour = parseInt(parts.timeStr.split(":")[0], 10);
-                      return appHour === hour;
-                    });
-
-                    // Find blocked times matching date & barber
-                    const cellBlocks = blockedTimes.filter((bt) => {
-                      if (bt.barber_id !== barber.id) return false;
-                      const startParts = utcToBudapestParts(bt.start_at);
-                      if (startParts.dateStr !== currentDate) return false;
-                      const blockHour = parseInt(startParts.timeStr.split(":")[0], 10);
-                      return blockHour === hour;
-                    });
-
-                    return (
-                      <div
-                        key={barber.id}
-                        onClick={(e) => {
-                          // If background clicked, open create modal with this time
-                          if (e.target === e.currentTarget) {
-                            handleOpenCreate(barber.id, hourStr);
-                          }
-                        }}
-                        className="p-1.5 relative group hover:bg-white/[0.02] transition-colors min-h-[72px] space-y-1.5"
-                      >
-                        {/* Render Blocked Times */}
-                        {cellBlocks.map((bt) => (
-                          <div
-                            key={bt.id}
-                            className="p-2 rounded-sm bg-destructive/10 border border-destructive/30 text-[11px] font-mono text-destructive flex items-center gap-1.5"
-                          >
-                            <Ban className="size-3 shrink-0" />
-                            <span className="truncate">BLOCKED: {bt.reason || "Internal"}</span>
-                          </div>
-                        ))}
-
-                        {/* Render Appointments */}
-                        {cellApps.map((app) => {
-                          const parts = utcToBudapestParts(app.start_at);
-                          const isPending = app.status === "pending";
-                          const isConfirmed = app.status === "confirmed";
-                          const isCompleted = app.status === "completed";
-
-                          const bgClass = isPending
-                            ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
-                            : isConfirmed
-                            ? "bg-primary/15 border-primary/40 text-primary-foreground"
-                            : isCompleted
-                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                            : "bg-muted border-border text-muted-foreground";
-
-                          return (
-                            <div
-                              key={app.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedApp(app);
-                              }}
-                              className={`p-2.5 rounded-sm border ${bgClass} cursor-pointer hover:scale-[1.01] transition-all shadow-xs space-y-1`}
-                            >
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="font-semibold truncate">{app.customer_name}</span>
-                                <span className="font-mono text-[10px] opacity-80">{parts.timeStr}</span>
-                              </div>
-                              <div className="flex items-center justify-between text-[10px] opacity-75">
-                                <span className="truncate">{app.services?.name_en || "Service"}</span>
-                                <span className="capitalize">{app.status}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                {displayedBarbers.map((barber) => (
+                  <div key={barber.id} className="p-3 text-center flex items-center justify-between gap-2 bg-muted/40">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <div className="size-7 rounded-full overflow-hidden border border-border bg-muted shrink-0">
+                        {barber.profile_photo_url ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={barber.profile_photo_url} alt={barber.name} className="size-full object-cover" />
+                        ) : (
+                          <User className="size-4 text-muted-foreground m-1" />
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                      <span className="font-serif font-semibold text-sm text-foreground truncate">
+                        {barber.name}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => handleOpenCreate(barber.id)}
+                      className="h-7 px-2 hover:bg-primary/10 hover:text-primary flex items-center gap-1 text-xs"
+                      title={`Book for ${barber.name}`}
+                    >
+                      <Plus className="size-3.5" />
+                      <span className="hidden sm:inline text-[10px] uppercase font-mono">Book</span>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Time Rows & Appointment Tiles */}
+              <div className="divide-y divide-border/60 max-h-[700px] overflow-y-auto">
+                {HOURS_GRID.map((hour) => {
+                  const hourStr = `${String(hour).padStart(2, "0")}:00`;
+
+                  return (
+                    <div
+                      key={hour}
+                      className="grid divide-x divide-border/60 min-h-[84px] sm:min-h-[72px]"
+                      style={{
+                        gridTemplateColumns: `64px repeat(${displayedBarbers.length}, minmax(180px, 1fr))`,
+                      }}
+                    >
+                      {/* Time label */}
+                      <div className="p-2 text-[11px] font-mono text-muted-foreground text-center font-semibold bg-muted/10 shrink-0 flex items-center justify-center">
+                        {hourStr}
+                      </div>
+
+                      {/* Barber Slots Column */}
+                      {displayedBarbers.map((barber) => {
+                        // Find appointments matching date, barber, and starting in this hour
+                        const cellApps = filteredAppointments.filter((app) => {
+                          if (app.barber_id !== barber.id) return false;
+                          const parts = utcToBudapestParts(app.start_at);
+                          if (parts.dateStr !== currentDate) return false;
+                          const appHour = parseInt(parts.timeStr.split(":")[0], 10);
+                          return appHour === hour;
+                        });
+
+                        // Find blocked times matching date & barber
+                        const cellBlocks = blockedTimes.filter((bt) => {
+                          if (bt.barber_id !== barber.id) return false;
+                          const startParts = utcToBudapestParts(bt.start_at);
+                          if (startParts.dateStr !== currentDate) return false;
+                          const blockHour = parseInt(startParts.timeStr.split(":")[0], 10);
+                          return blockHour === hour;
+                        });
+
+                        return (
+                          <div
+                            key={barber.id}
+                            onClick={(e) => {
+                              // If background clicked, open create modal with this time
+                              if (e.target === e.currentTarget) {
+                                handleOpenCreate(barber.id, hourStr);
+                              }
+                            }}
+                            className="p-1.5 relative group hover:bg-white/[0.03] active:bg-primary/5 transition-colors min-h-[84px] sm:min-h-[72px] space-y-1.5 cursor-pointer"
+                          >
+                            {/* Tap Hint for Empty Slots */}
+                            {cellApps.length === 0 && cellBlocks.length === 0 && (
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                <span className="text-[10px] font-mono text-primary/70 uppercase tracking-widest flex items-center gap-1 bg-background/90 px-2 py-1 rounded-sm border border-primary/20 shadow-xs">
+                                  <Plus className="size-3" /> {hourStr}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Render Blocked Times */}
+                            {cellBlocks.map((bt) => (
+                              <div
+                                key={bt.id}
+                                className="p-2 rounded-sm bg-destructive/10 border border-destructive/30 text-[11px] font-mono text-destructive flex items-center gap-1.5"
+                              >
+                                <Ban className="size-3 shrink-0" />
+                                <span className="truncate">BLOCKED: {bt.reason || "Internal"}</span>
+                              </div>
+                            ))}
+
+                            {/* Render Appointments */}
+                            {cellApps.map((app) => {
+                              const parts = utcToBudapestParts(app.start_at);
+                              const isPending = app.status === "pending";
+                              const isConfirmed = app.status === "confirmed";
+                              const isCompleted = app.status === "completed";
+
+                              const bgClass = isPending
+                                ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                                : isConfirmed
+                                ? "bg-primary/15 border-primary/40 text-primary-foreground"
+                                : isCompleted
+                                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                                : "bg-muted border-border text-muted-foreground";
+
+                              return (
+                                <div
+                                  key={app.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedApp(app);
+                                  }}
+                                  className={`p-2.5 rounded-sm border ${bgClass} cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-all shadow-xs space-y-1`}
+                                >
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="font-semibold truncate">{app.customer_name}</span>
+                                    <span className="font-mono text-[10px] opacity-80">{parts.timeStr}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[10px] opacity-75">
+                                    <span className="truncate">{app.services?.name_en || "Service"}</span>
+                                    <span className="capitalize">{app.status}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}

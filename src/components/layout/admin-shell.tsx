@@ -14,6 +14,7 @@ import {
   Ban,
   LayoutDashboard,
   Users,
+  UserCheck,
 } from "lucide-react";
 
 import { signOutAction } from "@/app/admin/(dashboard)/actions";
@@ -23,9 +24,11 @@ import { cn } from "cn";
 type AdminShellProps = {
   children: React.ReactNode;
   businessName?: string | null;
+  role?: "owner" | "staff";
+  barberName?: string | null;
 };
 
-const NAV_ITEMS = [
+const OWNER_NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/appointments", label: "Schedule", icon: Calendar },
   { href: "/admin/barbers", label: "Barbers", icon: Users },
@@ -36,8 +39,22 @@ const NAV_ITEMS = [
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
-export function AdminShell({ children, businessName }: AdminShellProps) {
+const STAFF_NAV_ITEMS = [
+  { href: "/admin/appointments", label: "My Schedule", icon: Calendar },
+  { href: "/admin/working-hours", label: "My Working Hours", icon: Clock },
+  { href: "/admin/blocked-times", label: "My Blocked Times", icon: Ban },
+  { href: "/admin/profile", label: "My Profile", icon: UserCheck },
+  { href: "/admin/portfolio", label: "My Portfolio", icon: ImageIcon },
+];
+
+export function AdminShell({
+  children,
+  businessName,
+  role = "owner",
+  barberName,
+}: AdminShellProps) {
   const pathname = usePathname();
+  const navItems = role === "staff" ? STAFF_NAV_ITEMS : OWNER_NAV_ITEMS;
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">
@@ -46,17 +63,22 @@ export function AdminShell({ children, businessName }: AdminShellProps) {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
-              href="/admin"
+              href={role === "staff" ? "/admin/appointments" : "/admin"}
               className="flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground hover:opacity-80 transition-opacity"
             >
               <Briefcase className="size-4 text-primary" />
-              <span>Barbod Admin</span>
+              <span>Barbod {role === "staff" ? "Staff" : "Admin"}</span>
             </Link>
-            {businessName && (
+            {role === "staff" ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                <UserCheck className="size-3" />
+                <span>{barberName || "Staff Workspace"}</span>
+              </span>
+            ) : businessName ? (
               <span className="hidden sm:inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
                 {businessName}
               </span>
-            )}
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -82,7 +104,7 @@ export function AdminShell({ children, businessName }: AdminShellProps) {
         <div className="border-t border-border/50 bg-background/50">
           <div className="mx-auto max-w-7xl px-4 sm:px-6">
             <nav className="flex space-x-1 overflow-x-auto py-1 scrollbar-none">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const isActive = item.exact
                   ? pathname === item.href
                   : pathname.startsWith(item.href);
@@ -116,3 +138,4 @@ export function AdminShell({ children, businessName }: AdminShellProps) {
     </div>
   );
 }
+

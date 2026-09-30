@@ -1,4 +1,4 @@
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { requireAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { AppointmentsManager } from "@/components/admin/appointments-manager";
 
@@ -11,23 +11,26 @@ export default async function AdminAppointmentsPage({
 }: {
   searchParams: Promise<{ action?: string }>;
 }) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return <div className="p-4 text-center">No business found for user.</div>;
-  }
+  const context = await requireAdminContext();
+  const business = context.business;
+  const isStaff = context.role === "staff" && context.barber !== null;
 
   const supabase = await createClient();
 
   // Load barbers
-  const { data: barbers } = await supabase
+  let barbersQuery = supabase
     .from("barbers")
     .select("*")
     .eq("business_id", business.id)
     .order("display_order", { ascending: true });
 
-  // Load services
+  if (isStaff) {
+    barbersQuery = barbersQuery.eq("id", context.barber!.id);
+  }
+
+  const { data: barbers } = await barbersQuery;
+
+  // Load services (if staff, filter by assigned services if desired, or all business services)
   const { data: services } = await supabase
     .from("services")
     .select("*")
@@ -35,18 +38,30 @@ export default async function AdminAppointmentsPage({
     .order("sort_order", { ascending: true });
 
   // Load blocked times
-  const { data: blockedTimes } = await supabase
+  let blockedQuery = supabase
     .from("blocked_times")
     .select("*")
     .eq("business_id", business.id)
     .order("start_at", { ascending: true });
 
+  if (isStaff) {
+    blockedQuery = blockedQuery.eq("barber_id", context.barber!.id);
+  }
+
+  const { data: blockedTimes } = await blockedQuery;
+
   // Load appointments with joined services and barbers
-  const { data: appointments, error } = await supabase
+  let appointmentsQuery = supabase
     .from("appointments")
     .select("*, services(*), barbers(*)")
     .eq("business_id", business.id)
     .order("start_at", { ascending: false });
+
+  if (isStaff) {
+    appointmentsQuery = appointmentsQuery.eq("barber_id", context.barber!.id);
+  }
+
+  const { data: appointments, error } = await appointmentsQuery;
 
   if (error) {
     console.error("Error loading appointments", error.message);
@@ -65,3 +80,4 @@ export default async function AdminAppointmentsPage({
     />
   );
 }
+

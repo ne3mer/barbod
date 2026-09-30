@@ -1,4 +1,5 @@
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+import { requireAdminContext } from "@/lib/auth/session";
 import { SettingsEditor } from "@/components/admin/settings-editor";
 
 export const metadata = {
@@ -6,12 +7,12 @@ export const metadata = {
 };
 
 export default async function AdminSettingsPage() {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await requireAdminContext();
 
-  if (!business) {
-    return <div className="p-4 text-center">No business found for user.</div>;
+  if (context.role === "staff") {
+    redirect("/admin/appointments");
   }
 
-  return <SettingsEditor business={business} />;
+  return <SettingsEditor business={context.business} />;
 }
+

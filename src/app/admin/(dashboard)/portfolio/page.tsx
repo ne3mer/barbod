@@ -1,4 +1,4 @@
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { requireAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PortfolioManager } from "@/components/admin/portfolio-manager";
 
@@ -11,20 +11,24 @@ export default async function AdminPortfolioPage({
 }: {
   searchParams: Promise<{ action?: string }>;
 }) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return <div className="p-4 text-center">No business found for user.</div>;
-  }
+  const context = await requireAdminContext();
+  const business = context.business;
+  const isStaff = context.role === "staff" && context.barber !== null;
 
   const supabase = await createClient();
-  const { data: items, error } = await supabase
+
+  let query = supabase
     .from("portfolio_items")
     .select("*")
     .eq("business_id", business.id)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
+
+  if (isStaff) {
+    query = query.eq("barber_id", context.barber!.id);
+  }
+
+  const { data: items, error } = await query;
 
   if (error) {
     console.error("Error loading portfolio items", error.message);
@@ -41,3 +45,4 @@ export default async function AdminPortfolioPage({
     />
   );
 }
+

@@ -1,4 +1,4 @@
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { requireAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { WorkingHoursEditor } from "@/components/admin/working-hours-editor";
 
@@ -7,20 +7,24 @@ export const metadata = {
 };
 
 export default async function AdminWorkingHoursPage() {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return <div className="p-4 text-center">No business found for user.</div>;
-  }
+  const context = await requireAdminContext();
+  const business = context.business;
+  const isStaff = context.role === "staff" && context.barber !== null;
 
   const supabase = await createClient();
-  const { data: rows, error } = await supabase
+
+  let query = supabase
     .from("working_hours")
     .select("*")
     .eq("business_id", business.id)
     .order("day_of_week", { ascending: true })
     .order("start_time", { ascending: true });
+
+  if (isStaff) {
+    query = query.eq("barber_id", context.barber!.id);
+  }
+
+  const { data: rows, error } = await query;
 
   if (error) {
     console.error("Error loading working hours", error.message);
@@ -28,3 +32,4 @@ export default async function AdminWorkingHoursPage() {
 
   return <WorkingHoursEditor initialRows={rows ?? []} />;
 }
+

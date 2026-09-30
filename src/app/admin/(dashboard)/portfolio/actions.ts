@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { getAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { PortfolioCategory } from "@/types";
 import type { TablesUpdate } from "@/types/database";
@@ -16,18 +16,24 @@ export type PortfolioInput = {
 };
 
 export async function createPortfolioItemAction(data: PortfolioInput) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
+  }
 
-  if (!business) {
-    return { error: "No business linked to account." };
+  const business = context.business;
+  const supabase = await createClient();
+
+  if (context.role === "staff") {
+    if (!context.barber) {
+      return { error: "Staff barber profile not found." };
+    }
+    data.barber_id = context.barber.id;
   }
 
   if (!data.image_path) {
     return { error: "Image path is required." };
   }
-
-  const supabase = await createClient();
 
   // Determine barber_id
   let barberId = data.barber_id;
@@ -76,14 +82,26 @@ export async function updatePortfolioItemAction(
   id: string,
   data: Partial<PortfolioInput>
 ) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "No business linked to account." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
+
+  if (context.role === "staff") {
+    const { data: targetItem } = await supabase
+      .from("portfolio_items")
+      .select("barber_id")
+      .eq("id", id)
+      .single();
+
+    if (!targetItem || targetItem.barber_id !== context.barber?.id) {
+      return { error: "Unauthorized: You can only edit your own portfolio items." };
+    }
+    data.barber_id = context.barber.id;
+  }
 
   const updatePayload: TablesUpdate<"portfolio_items"> = {};
   if (data.barber_id !== undefined) updatePayload.barber_id = data.barber_id;
@@ -116,14 +134,25 @@ export async function togglePortfolioVisibilityAction(
 }
 
 export async function deletePortfolioItemAction(id: string, imagePath: string) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "No business linked to account." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
+
+  if (context.role === "staff") {
+    const { data: targetItem } = await supabase
+      .from("portfolio_items")
+      .select("barber_id")
+      .eq("id", id)
+      .single();
+
+    if (!targetItem || targetItem.barber_id !== context.barber?.id) {
+      return { error: "Unauthorized: You can only delete your own portfolio items." };
+    }
+  }
 
   // 1. Delete storage file
   const { error: storageErr } = await supabase.storage
@@ -148,6 +177,9 @@ export async function deletePortfolioItemAction(id: string, imagePath: string) {
 
   revalidatePath("/admin/portfolio");
   revalidatePath("/admin");
+  return { success: true };
+}
+
   return { success: true };
 }
 

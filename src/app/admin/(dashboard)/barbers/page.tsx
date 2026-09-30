@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { requireAdminContext } from "@/lib/auth/session";
 import { BarbersManager } from "@/components/admin/barbers-manager";
 
 export const metadata = {
@@ -8,12 +8,14 @@ export const metadata = {
 };
 
 export default async function AdminBarbersPage() {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await requireAdminContext();
 
-  if (!business) {
-    redirect("/admin/login");
+  if (context.role === "staff") {
+    redirect("/admin/profile");
   }
+
+  const business = context.business;
+
 
   const supabase = await createClient();
 

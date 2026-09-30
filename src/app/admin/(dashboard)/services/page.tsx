@@ -1,4 +1,5 @@
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+import { requireAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { ServicesManager } from "@/components/admin/services-manager";
 
@@ -11,12 +12,14 @@ export default async function AdminServicesPage({
 }: {
   searchParams: Promise<{ action?: string }>;
 }) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await requireAdminContext();
 
-  if (!business) {
-    return <div className="p-4 text-center">No business found for user.</div>;
+  if (context.role === "staff") {
+    redirect("/admin/appointments");
   }
+
+  const business = context.business;
+
 
   const supabase = await createClient();
   const { data: services, error } = await supabase

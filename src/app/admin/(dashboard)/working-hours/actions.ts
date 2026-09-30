@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { getAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { timeStringToMinutes } from "@/lib/utils/dates";
 
@@ -30,14 +30,21 @@ export async function saveWorkingHoursAction(
   schedules: DayScheduleInput[],
   targetBarberId?: string
 ) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "No business linked to account." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
+
+  // If staff, force targetBarberId to context.barber.id
+  if (context.role === "staff") {
+    if (!context.barber) {
+      return { error: "Staff barber profile not found." };
+    }
+    targetBarberId = context.barber.id;
+  }
 
   // Determine barber_id
   let barberId = targetBarberId;
@@ -50,6 +57,7 @@ export async function saveWorkingHoursAction(
       .single();
     barberId = firstBarber?.id;
   }
+
 
   if (!barberId) {
     return { error: "No barber found for business." };

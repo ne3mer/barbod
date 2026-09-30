@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   Calendar,
   Clock,
@@ -11,7 +12,7 @@ import {
 } from "lucide-react";
 
 import { BUSINESS_TIMEZONE } from "@/types";
-import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
+import { requireAdminContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { utcToBudapestParts } from "@/lib/utils/dates";
 import { Badge } from "@/components/ui/badge";
@@ -89,33 +90,16 @@ async function getDashboardMetrics(businessId: string) {
   };
 }
 
-function NoBusinessState() {
-  return (
-    <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        Setup required
-      </p>
-      <h1 className="text-2xl font-bold tracking-tight">
-        No business configured
-      </h1>
-      <p className="text-sm text-muted-foreground leading-relaxed">
-        Your account is signed in, but no business is linked to it yet. Ask an
-        administrator to attach a business to this owner, or run the project
-        seed for your profile.
-      </p>
-    </div>
-  );
-}
-
 export default async function AdminDashboardPage() {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await requireAdminContext();
 
-  if (!business) {
-    return <NoBusinessState />;
+  if (context.role === "staff") {
+    redirect("/admin/appointments");
   }
 
+  const business = context.business;
   const metrics = await getDashboardMetrics(business.id);
+
 
   return (
     <div className="space-y-8">
