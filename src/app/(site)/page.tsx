@@ -3,13 +3,14 @@ import {
   getPublicServices,
   getPublicPortfolio,
   getPublicWorkingHours,
+  getPublicBarbers,
 } from "@/lib/public/business";
 import { PublicHome } from "@/components/public/public-home";
 
 export const metadata = {
-  title: "Barbod Barber | Premium Barbershop Budapest",
+  title: "Barbod Barber | Premium Multi-Staff Barbershop Budapest",
   description:
-    "Precision cuts, traditional beard grooming, and craft barbering in Budapest, Hungary. Book your appointment online.",
+    "Precision cuts, traditional beard grooming, and craft barbering in Budapest, Hungary. Book with your preferred barber online.",
   openGraph: {
     title: "Barbod Barber | Budapest",
     description:
@@ -32,7 +33,8 @@ export default async function HomePage() {
     );
   }
 
-  const [services, portfolio, workingHours] = await Promise.all([
+  const [barbers, services, portfolio, workingHours] = await Promise.all([
+    getPublicBarbers(business.id),
     getPublicServices(business.id),
     getPublicPortfolio(business.id),
     getPublicWorkingHours(business.id),
@@ -41,6 +43,7 @@ export default async function HomePage() {
   return (
     <PublicHome
       business={business}
+      barbers={barbers}
       services={services}
       portfolio={portfolio}
       workingHours={workingHours}

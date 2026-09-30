@@ -15,7 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-import type { PublicBusiness, PublicService } from "@/lib/public/business";
+import type { PublicBusiness, PublicBarber, PublicService } from "@/lib/public/business";
 import type { AvailableSlot } from "@/lib/booking/availability";
 import { useLanguage } from "@/lib/i18n/context";
 import { getLocalizedField } from "@/lib/i18n/translations";
@@ -31,6 +31,7 @@ import {
 
 export type ConfirmedBookingSummary = {
   id: string;
+  barberName: string;
   serviceNameEn: string;
   serviceNameHu: string;
   durationMinutes: number;
@@ -44,14 +45,29 @@ export type ConfirmedBookingSummary = {
 
 interface BookingFlowProps {
   business: PublicBusiness;
+  barbers: PublicBarber[];
   services: PublicService[];
+  barberServicesMap: Record<string, string[]>;
 }
 
-export function BookingFlow({ business, services }: BookingFlowProps) {
+export function BookingFlow({
+  business,
+  barbers,
+  services,
+  barberServicesMap,
+}: BookingFlowProps) {
   const { lang, t } = useLanguage();
   const searchParams = useSearchParams();
 
-  // Lazy compute initial service from URL parameter
+  // URL Params pre-selection
+  const initialBarber = React.useMemo(() => {
+    const barberParam = searchParams.get("barber");
+    if (barberParam && barbers.length > 0) {
+      return barbers.find((b) => b.id === barberParam) || null;
+    }
+    return barbers.length === 1 ? barbers[0] : null;
+  }, [searchParams, barbers]);
+
   const initialService = React.useMemo(() => {
     const serviceParam = searchParams.get("service");
     if (serviceParam && services.length > 0) {
@@ -60,19 +76,20 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
     return null;
   }, [searchParams, services]);
 
-  // Wizard Steps: 1=Service, 2=Date & Time, 3=Details, 4=Review, 5=Success
-  const [step, setStep] = React.useState<number>(initialService ? 2 : 1);
+  // Steps: 1=Barber, 2=Service, 3=Date & Time, 4=Details, 5=Review, 6=Success
+  const [step, setStep] = React.useState<number>(() => {
+    if (initialBarber && initialService) return 3;
+    if (initialBarber) return 2;
+    return 1;
+  });
 
   // Selected State
-  const [selectedService, setSelectedService] = React.useState<PublicService | null>(
-    initialService
-  );
+  const [selectedBarber, setSelectedBarber] = React.useState<PublicBarber | null>(initialBarber);
+  const [selectedService, setSelectedService] = React.useState<PublicService | null>(initialService);
   const [selectedDate, setSelectedDate] = React.useState<string>(
     () => new Date().toISOString().split("T")[0]
   );
-  const [selectedSlot, setSelectedSlot] = React.useState<AvailableSlot | null>(
-    null
-  );
+  const [selectedSlot, setSelectedSlot] = React.useState<AvailableSlot | null>(null);
 
   // Customer Form State
   const [customerName, setCustomerName] = React.useState("");
@@ -81,20 +98,28 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
   const [notes, setNotes] = React.useState("");
 
   // Slots loading & error states
-  const [availableSlots, setAvailableSlots] = React.useState<AvailableSlot[]>(
-    []
-  );
+  const [availableSlots, setAvailableSlots] = React.useState<AvailableSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
   // Confirmed booking summary state
-  const [confirmedBooking, setConfirmedBooking] =
-    React.useState<ConfirmedBookingSummary | null>(null);
+  const [confirmedBooking, setConfirmedBooking] = React.useState<ConfirmedBookingSummary | null>(null);
 
-  // Load available slots asynchronously when date or service changes
+  // Filter available services for selected barber
+  const availableServicesForBarber = React.useMemo(() => {
+    if (!selectedBarber) return [];
+    const assignedIds = barberServicesMap[selectedBarber.id] || [];
+    // If no explicit mapping exists, fall back to all active services for primary/only barber
+    if (assignedIds.length === 0 && barbers.length === 1) {
+      return services;
+    }
+    return services.filter((s) => assignedIds.includes(s.id));
+  }, [selectedBarber, services, barberServicesMap, barbers]);
+
+  // Load available slots asynchronously when barber, service, or date changes
   React.useEffect(() => {
-    if (!selectedService || !selectedDate) return;
+    if (!selectedBarber || !selectedService || !selectedDate) return;
     let isMounted = true;
 
     const loadSlots = async () => {
@@ -102,7 +127,11 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
       setErrorMsg(null);
       setSelectedSlot(null);
 
-      const res = await fetchAvailableSlotsAction(selectedService.id, selectedDate);
+      const res = await fetchAvailableSlotsAction(
+        selectedBarber.id,
+        selectedService.id,
+        selectedDate
+      );
       if (!isMounted) return;
 
       setLoadingSlots(false);
@@ -119,12 +148,25 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
     return () => {
       isMounted = false;
     };
-  }, [selectedService, selectedDate]);
+  }, [selectedBarber, selectedService, selectedDate]);
+
+  const handleSelectBarber = (barber: PublicBarber) => {
+    setSelectedBarber(barber);
+    // Reset service if it's not offered by the newly selected barber
+    if (selectedService) {
+      const assignedIds = barberServicesMap[barber.id] || [];
+      if (assignedIds.length > 0 && !assignedIds.includes(selectedService.id)) {
+        setSelectedService(null);
+      }
+    }
+    setErrorMsg(null);
+    setStep(2);
+  };
 
   const handleSelectService = (svc: PublicService) => {
     setSelectedService(svc);
     setErrorMsg(null);
-    setStep(2);
+    setStep(3);
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,17 +185,18 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
       return;
     }
     setErrorMsg(null);
-    setStep(4);
+    setStep(5);
   };
 
   const handleConfirmSubmit = async () => {
-    if (!selectedService || !selectedDate || !selectedSlot) return;
+    if (!selectedBarber || !selectedService || !selectedDate || !selectedSlot) return;
 
     setSubmitting(true);
     setErrorMsg(null);
 
     const res = await createPublicBookingAction({
       businessSlug: business.slug,
+      barberId: selectedBarber.id,
       serviceId: selectedService.id,
       dateStr: selectedDate,
       startTimeStr: selectedSlot.timeStr,
@@ -179,22 +222,23 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
       }
     } else if (res.success && res.booking) {
       setConfirmedBooking(res.booking as ConfirmedBookingSummary);
-      setStep(5);
+      setStep(6);
     }
   };
 
   const todayStr = new Date().toISOString().split("T")[0];
 
   const stepLabels = [
-    { num: 1, label: lang === "hu" ? "01 SZOLGÁLTATÁS" : "01 SERVICE" },
-    { num: 2, label: lang === "hu" ? "02 DÁTUM ÉS IDŐ" : "02 DATE & TIME" },
-    { num: 3, label: lang === "hu" ? "03 ADATOK" : "03 DETAILS" },
-    { num: 4, label: lang === "hu" ? "04 ÖSSZEGZÉS" : "04 REVIEW" },
+    { num: 1, label: lang === "hu" ? "01 BORBÉLY" : "01 BARBER" },
+    { num: 2, label: lang === "hu" ? "02 SZOLGÁLTATÁS" : "02 SERVICE" },
+    { num: 3, label: lang === "hu" ? "03 DÁTUM ÉS IDŐ" : "03 DATE & TIME" },
+    { num: 4, label: lang === "hu" ? "04 ADATOK" : "04 DETAILS" },
+    { num: 5, label: lang === "hu" ? "05 ÖSSZEGZÉS" : "05 REVIEW" },
   ];
 
   return (
     <div className="mx-auto max-w-4xl w-full px-4 py-8 sm:px-6 sm:py-16 space-y-10">
-      {/* 1. Minimal Focused Header */}
+      {/* 1. Minimal Header */}
       <div className="flex items-center justify-between border-b border-white/10 pb-6">
         <div className="flex flex-col">
           <span className="font-serif tracking-[0.2em] uppercase text-lg font-medium text-foreground leading-none">
@@ -215,8 +259,8 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
       </div>
 
       {/* 2. Refined Editorial Progress Indicator */}
-      {step < 5 && (
-        <div className="grid grid-cols-4 gap-2 border-b border-white/10 pb-4">
+      {step < 6 && (
+        <div className="grid grid-cols-5 gap-1.5 border-b border-white/10 pb-4">
           {stepLabels.map((s) => {
             const isActive = step === s.num;
             const isCompleted = step > s.num;
@@ -232,7 +276,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
                     : "text-muted-foreground/40 font-normal"
                 }`}
               >
-                <span className="text-[11px] sm:text-xs tracking-wider uppercase font-mono block">
+                <span className="text-[10px] sm:text-xs tracking-wider uppercase font-mono block truncate">
                   {s.label}
                 </span>
               </div>
@@ -249,63 +293,66 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
         </div>
       )}
 
-      {/* STEP 1: SELECT SERVICE */}
+      {/* STEP 1: CHOOSE BARBER */}
       {step === 1 && (
         <div className="space-y-8">
           <div className="space-y-1">
             <span className="eyebrow">{lang === "hu" ? "1. LÉPÉS" : "STEP 01"}</span>
             <h2 className="text-3xl font-normal text-foreground font-serif">
-              {t.step1Title}
+              {lang === "hu" ? "Válasszon borbélyt" : "Choose Your Barber"}
             </h2>
           </div>
 
-          <div className="divide-y divide-white/10 border-t border-b border-white/10">
-            {services.map((svc, idx) => {
-              const name = getLocalizedField(svc, "name", lang);
-              const desc = getLocalizedField(svc, "description", lang);
-              const isSelected = selectedService?.id === svc.id;
-              const priceFormatted = new Intl.NumberFormat(
-                lang === "hu" ? "hu-HU" : "en-US"
-              ).format(svc.price);
-              const indexStr = String(idx + 1).padStart(2, "0");
+          <div className="grid gap-6 sm:grid-cols-2">
+            {barbers.map((barber) => {
+              const bio = getLocalizedField(barber, "bio", lang);
+              const isSelected = selectedBarber?.id === barber.id;
 
               return (
                 <div
-                  key={svc.id}
-                  onClick={() => handleSelectService(svc)}
-                  className={`group flex flex-col md:flex-row md:items-center justify-between gap-6 py-6 px-4 cursor-pointer transition-all duration-200 ${
+                  key={barber.id}
+                  onClick={() => handleSelectBarber(barber)}
+                  className={`group relative rounded-sm border p-6 cursor-pointer transition-all duration-300 ${
                     isSelected
-                      ? "bg-primary/10 border-l-2 border-primary"
-                      : "hover:bg-white/[0.02]"
+                      ? "border-primary bg-primary/10 shadow-lg"
+                      : "border-white/10 bg-card hover:border-primary/50 hover:bg-white/[0.02]"
                   }`}
                 >
-                  <div className="flex items-start gap-6">
-                    <span className="font-mono text-sm font-semibold text-primary/70 pt-1 shrink-0">
-                      {indexStr}
-                    </span>
+                  <div className="flex items-start gap-4">
+                    <div className="relative size-16 shrink-0 rounded-full overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center">
+                      {barber.profile_photo_url ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={barber.profile_photo_url}
+                          alt={barber.name}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <User className="size-8 text-primary/70" />
+                      )}
+                    </div>
 
-                    <div className="space-y-1 max-w-lg">
-                      <h3 className="text-xl font-normal text-foreground font-serif group-hover:text-primary transition-colors">
-                        {name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground leading-relaxed font-light">
-                        {desc || t.defaultServiceDesc}
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-normal font-serif text-foreground group-hover:text-primary transition-colors">
+                          {barber.name}
+                        </h3>
+                        {isSelected && (
+                          <CheckCircle2 className="size-5 text-primary shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground font-light line-clamp-3 leading-relaxed">
+                        {bio || (lang === "hu" ? "Tapasztalt férfi fodrász és borbély." : "Master barber specializing in traditional cuts & precision styling.")}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between md:justify-end gap-6 pt-2 md:pt-0">
-                    <div className="text-left md:text-right">
-                      <div className="text-xs font-mono text-muted-foreground">
-                        {svc.duration_minutes} {t.duration}
-                      </div>
-                      <div className="text-base font-sans font-bold text-primary mt-0.5">
-                        {priceFormatted} {svc.currency}
-                      </div>
-                    </div>
-
+                  <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground font-mono">
+                      {lang === "hu" ? "ELÉRHETŐ" : "AVAILABLE"}
+                    </span>
                     <Button size="xs" variant={isSelected ? "default" : "outline"}>
-                      {t.nextStep}
+                      {lang === "hu" ? "Borbély kiválasztása" : "Select Barber"}
                     </Button>
                   </div>
                 </div>
@@ -315,21 +362,131 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
         </div>
       )}
 
-      {/* STEP 2: SELECT DATE & TIME SLOT */}
-      {step === 2 && (
+      {/* STEP 2: SELECT SERVICE */}
+      {step === 2 && selectedBarber && (
         <div className="space-y-8">
-          {/* Selected Service Bar */}
+          {/* Selected Barber Bar */}
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
-            <div>
-              <span className="eyebrow">{t.selectedServiceLabel}</span>
-              <h3 className="text-xl font-normal text-foreground font-serif mt-0.5">
-                {selectedService && getLocalizedField(selectedService, "name", lang)}
-              </h3>
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-full overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center">
+                {selectedBarber.profile_photo_url ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={selectedBarber.profile_photo_url} alt={selectedBarber.name} className="size-full object-cover" />
+                ) : (
+                  <User className="size-5 text-primary" />
+                )}
+              </div>
+              <div>
+                <span className="eyebrow">{lang === "hu" ? "KIVÁLASZTOTT BORBÉLY" : "SELECTED BARBER"}</span>
+                <h3 className="text-lg font-normal text-foreground font-serif">
+                  {selectedBarber.name}
+                </h3>
+              </div>
             </div>
+
             <Button
               variant="ghost"
               size="xs"
               onClick={() => setStep(1)}
+              className="gap-1.5 text-xs text-muted-foreground hover:text-primary"
+            >
+              <ArrowLeft className="size-3.5" />
+              <span>{lang === "hu" ? "MÁSIK BORBÉLY" : "CHANGE BARBER"}</span>
+            </Button>
+          </div>
+
+          <div className="space-y-1">
+            <span className="eyebrow">{lang === "hu" ? "2. LÉPÉS" : "STEP 02"}</span>
+            <h2 className="text-3xl font-normal text-foreground font-serif">
+              {t.step1Title}
+            </h2>
+          </div>
+
+          <div className="divide-y divide-white/10 border-t border-b border-white/10">
+            {availableServicesForBarber.length === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground font-light">
+                {lang === "hu" ? "Nincs elérhető szolgáltatás ehhez a borbélyhoz." : "No services configured for this barber yet."}
+              </div>
+            ) : (
+              availableServicesForBarber.map((svc, idx) => {
+                const name = getLocalizedField(svc, "name", lang);
+                const desc = getLocalizedField(svc, "description", lang);
+                const isSelected = selectedService?.id === svc.id;
+                const priceFormatted = new Intl.NumberFormat(
+                  lang === "hu" ? "hu-HU" : "en-US"
+                ).format(svc.price);
+                const indexStr = String(idx + 1).padStart(2, "0");
+
+                return (
+                  <div
+                    key={svc.id}
+                    onClick={() => handleSelectService(svc)}
+                    className={`group flex flex-col md:flex-row md:items-center justify-between gap-6 py-6 px-4 cursor-pointer transition-all duration-200 ${
+                      isSelected
+                        ? "bg-primary/10 border-l-2 border-primary"
+                        : "hover:bg-white/[0.02]"
+                    }`}
+                  >
+                    <div className="flex items-start gap-6">
+                      <span className="font-mono text-sm font-semibold text-primary/70 pt-1 shrink-0">
+                        {indexStr}
+                      </span>
+
+                      <div className="space-y-1 max-w-lg">
+                        <h3 className="text-xl font-normal text-foreground font-serif group-hover:text-primary transition-colors">
+                          {name}
+                        </h3>
+                        <p className="text-xs text-muted-foreground leading-relaxed font-light">
+                          {desc || t.defaultServiceDesc}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between md:justify-end gap-6 pt-2 md:pt-0">
+                      <div className="text-left md:text-right">
+                        <div className="text-xs font-mono text-muted-foreground">
+                          {svc.duration_minutes} {t.duration}
+                        </div>
+                        <div className="text-base font-sans font-bold text-primary mt-0.5">
+                          {priceFormatted} {svc.currency}
+                        </div>
+                      </div>
+
+                      <Button size="xs" variant={isSelected ? "default" : "outline"}>
+                        {t.nextStep}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* STEP 3: SELECT DATE & TIME SLOT */}
+      {step === 3 && selectedBarber && selectedService && (
+        <div className="space-y-8">
+          {/* Summary Header */}
+          <div className="flex flex-wrap items-center justify-between border-b border-white/10 pb-4 gap-4">
+            <div className="flex items-center gap-6">
+              <div>
+                <span className="eyebrow">{lang === "hu" ? "BORBÉLY" : "BARBER"}</span>
+                <p className="text-sm font-serif text-foreground font-medium">{selectedBarber.name}</p>
+              </div>
+              <div className="h-6 w-px bg-white/10" />
+              <div>
+                <span className="eyebrow">{t.selectedServiceLabel}</span>
+                <p className="text-sm font-serif text-foreground font-medium">
+                  {getLocalizedField(selectedService, "name", lang)}
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setStep(2)}
               className="gap-1.5 text-xs text-muted-foreground hover:text-primary"
             >
               <ArrowLeft className="size-3.5" />
@@ -403,13 +560,13 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
           </div>
 
           <div className="flex justify-between pt-6 border-t border-white/10">
-            <Button variant="outline" onClick={() => setStep(1)} className="gap-2">
+            <Button variant="outline" onClick={() => setStep(2)} className="gap-2">
               <ArrowLeft className="size-4" />
               <span>{t.prevStep}</span>
             </Button>
 
             <Button
-              onClick={() => setStep(3)}
+              onClick={() => setStep(4)}
               disabled={!selectedSlot}
               className="gap-2 px-8"
             >
@@ -420,11 +577,11 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
         </div>
       )}
 
-      {/* STEP 3: CUSTOMER DETAILS */}
-      {step === 3 && (
+      {/* STEP 4: CUSTOMER DETAILS */}
+      {step === 4 && (
         <form onSubmit={handleDetailsNext} className="space-y-8">
           <div className="space-y-1">
-            <span className="eyebrow">{lang === "hu" ? "3. LÉPÉS" : "STEP 03"}</span>
+            <span className="eyebrow">{lang === "hu" ? "4. LÉPÉS" : "STEP 04"}</span>
             <h2 className="text-2xl font-normal text-foreground font-serif">
               {t.step4Title}
             </h2>
@@ -492,7 +649,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setStep(2)}
+              onClick={() => setStep(3)}
               className="gap-2"
             >
               <ArrowLeft className="size-4" />
@@ -507,11 +664,11 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
         </form>
       )}
 
-      {/* STEP 4: REVIEW & CONFIRM */}
-      {step === 4 && selectedService && selectedSlot && (
+      {/* STEP 5: REVIEW & CONFIRM */}
+      {step === 5 && selectedBarber && selectedService && selectedSlot && (
         <div className="space-y-8">
           <div className="space-y-1">
-            <span className="eyebrow">{lang === "hu" ? "4. LÉPÉS" : "STEP 04"}</span>
+            <span className="eyebrow">{lang === "hu" ? "5. LÉPÉS" : "STEP 05"}</span>
             <h2 className="text-2xl font-normal text-foreground font-serif">
               {t.step5Title}
             </h2>
@@ -532,6 +689,14 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             </div>
 
             <div className="grid gap-6 sm:grid-cols-2 text-sm">
+              <div>
+                <span className="eyebrow block mb-1">{lang === "hu" ? "BORBÉLY" : "BARBER"}</span>
+                <span className="font-serif text-lg font-medium text-foreground flex items-center gap-2">
+                  <User className="size-4 text-primary" />
+                  {selectedBarber.name}
+                </span>
+              </div>
+
               <div>
                 <span className="eyebrow block mb-1">{t.dateTimeLabel}</span>
                 <span className="font-semibold font-mono text-foreground flex items-center gap-2 text-base">
@@ -579,7 +744,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setStep(3)}
+              onClick={() => setStep(4)}
               className="gap-2"
             >
               <ArrowLeft className="size-4" />
@@ -607,8 +772,8 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
         </div>
       )}
 
-      {/* STEP 5: SUCCESS SCREEN */}
-      {step === 5 && confirmedBooking && (
+      {/* STEP 6: SUCCESS SCREEN */}
+      {step === 6 && confirmedBooking && (
         <div className="py-12 space-y-8 text-center max-w-xl mx-auto">
           <div className="flex flex-col items-center justify-center space-y-4">
             <div className="rounded-full bg-emerald-500/10 p-5 text-emerald-500 border border-emerald-500/20">
@@ -627,6 +792,13 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             <h3 className="eyebrow border-b border-white/10 pb-3">
               {t.bookingDetails}
             </h3>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{lang === "hu" ? "Borbély" : "Barber"}:</span>
+              <span className="font-serif font-medium text-foreground">
+                {confirmedBooking.barberName}
+              </span>
+            </div>
 
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t.serviceLabel}:</span>
@@ -667,8 +839,9 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             </Link>
             <Button
               onClick={() => {
+                setSelectedBarber(barbers.length === 1 ? barbers[0] : null);
                 setSelectedService(null);
-                setSelectedDate("");
+                setSelectedDate(todayStr);
                 setSelectedSlot(null);
                 setCustomerName("");
                 setCustomerPhone("");

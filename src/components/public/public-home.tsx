@@ -12,10 +12,12 @@ import {
   X,
   ExternalLink,
   Globe,
+  User,
 } from "lucide-react";
 
 import type {
   PublicBusiness,
+  PublicBarber,
   PublicService,
   PublicPortfolioItem,
   PublicWorkingHours,
@@ -28,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface PublicHomeProps {
   business: PublicBusiness;
+  barbers: PublicBarber[];
   services: PublicService[];
   portfolio: PublicPortfolioItem[];
   workingHours: PublicWorkingHours[];
@@ -47,11 +50,13 @@ const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 export function PublicHome({
   business,
+  barbers,
   services,
   portfolio,
   workingHours,
 }: PublicHomeProps) {
   const { lang, t } = useLanguage();
+  const [selectedBarberFilter, setSelectedBarberFilter] = React.useState<string>("all");
   const [selectedCategory, setSelectedCategory] = React.useState<string>("all");
   const [lightboxImg, setLightboxImg] = React.useState<string | null>(null);
 
@@ -69,9 +74,15 @@ export function PublicHome({
   }, [portfolio]);
 
   const filteredPortfolio = React.useMemo(() => {
-    if (selectedCategory === "all") return portfolio;
-    return portfolio.filter((p) => p.category === selectedCategory);
-  }, [portfolio, selectedCategory]);
+    let result = portfolio;
+    if (selectedBarberFilter !== "all") {
+      result = result.filter((p) => p.barber_id === selectedBarberFilter);
+    }
+    if (selectedCategory !== "all") {
+      result = result.filter((p) => p.category === selectedCategory);
+    }
+    return result;
+  }, [portfolio, selectedBarberFilter, selectedCategory]);
 
   const heroFeaturedImage = portfolio.length > 0 ? getPublicUrl(portfolio[0].image_path) : null;
 
@@ -81,7 +92,7 @@ export function PublicHome({
       <section className="relative overflow-hidden border-b border-white/10 py-16 sm:py-24 lg:py-32 bg-gradient-to-b from-background via-card/30 to-background">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
-            {/* Left 7-Cols: Editorial Headline & Actions */}
+            {/* Left 7-Cols */}
             <div className="lg:col-span-7 space-y-8">
               <div className="inline-flex items-center gap-2.5 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.25em] text-primary">
                 <Scissors className="size-3.5" />
@@ -107,15 +118,15 @@ export function PublicHome({
                     <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-1.5" />
                   </Button>
                 </Link>
-                <Link href="#portfolio">
+                <Link href="#barbers">
                   <Button size="lg" variant="outline" className="px-8 text-xs uppercase tracking-[0.15em]">
-                    {t.heroSecondaryCta}
+                    {lang === "hu" ? "MEGISMERKEDÉS A CSAPATTAL" : "MEET THE TEAM"}
                   </Button>
                 </Link>
               </div>
             </div>
 
-            {/* Right 5-Cols: Asymmetric Architectural Frame */}
+            {/* Right 5-Cols */}
             <div className="lg:col-span-5 relative">
               <div className="relative aspect-4/5 overflow-hidden rounded-sm border border-white/10 bg-card p-2 shadow-2xl">
                 {heroFeaturedImage ? (
@@ -135,7 +146,6 @@ export function PublicHome({
                     </span>
                   </div>
                 )}
-                {/* Decorative border overlay */}
                 <div className="absolute inset-4 border border-white/10 pointer-events-none" />
               </div>
             </div>
@@ -143,7 +153,81 @@ export function PublicHome({
         </div>
       </section>
 
-      {/* 2. Editorial Numbered Services List */}
+      {/* 2. MEET THE BARBERS / TEAM SECTION */}
+      <section id="barbers" className="mx-auto max-w-7xl px-4 sm:px-6 w-full scroll-mt-24 space-y-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/10 pb-6">
+          <div className="space-y-2">
+            <span className="eyebrow">{lang === "hu" ? "BORBÉLYAINK" : "OUR BARBERS"}</span>
+            <h2 className="text-3xl sm:text-5xl font-normal tracking-tight text-foreground font-serif">
+              {lang === "hu" ? "Ismerje meg borbélyainkat" : "Meet The Atelier Team"}
+            </h2>
+          </div>
+          <Link href="/book">
+            <Button variant="outline" size="sm" className="group gap-2 text-xs uppercase tracking-wider">
+              <span>{lang === "hu" ? "FOGLALÁS BORBÉLYNÁL" : "BOOK WITH BARBER"}</span>
+              <ArrowRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-1" />
+            </Button>
+          </Link>
+        </div>
+
+        {barbers.length === 0 ? (
+          <div className="text-center py-16 border border-dashed border-white/10 rounded-sm bg-card/40">
+            <p className="text-sm text-muted-foreground">
+              {lang === "hu" ? "Nincs aktív borbély konfigurálva." : "No active barbers configured yet."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {barbers.map((barber) => {
+              const bio = getLocalizedField(barber, "bio", lang);
+              return (
+                <div
+                  key={barber.id}
+                  className="group rounded-sm border border-white/10 bg-card p-6 flex flex-col justify-between hover:border-primary/50 transition-all duration-300 shadow-lg"
+                >
+                  <div className="space-y-5">
+                    <div className="relative aspect-square rounded-sm overflow-hidden border border-white/10 bg-white/5">
+                      {barber.profile_photo_url ? (
+                        <img
+                          src={barber.profile_photo_url}
+                          alt={barber.name}
+                          className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="size-full flex flex-col items-center justify-center text-muted-foreground/40">
+                          <User className="size-16 stroke-[1]" />
+                          <span className="text-xs font-serif uppercase tracking-widest mt-2">BARBOD</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <h3 className="text-2xl font-normal font-serif text-foreground group-hover:text-primary transition-colors">
+                        {barber.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed font-light line-clamp-4">
+                        {bio || (lang === "hu" ? "Prémium férfi hajvágás és szakállápolás szakértője." : "Precision cutting and traditional hot towel beard grooming specialist.")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 mt-6 border-t border-white/10">
+                    <Link href={`/book?barber=${barber.id}`} className="block">
+                      <Button className="w-full group gap-2 text-xs uppercase tracking-wider font-semibold">
+                        <span>{lang === "hu" ? `Foglalás: ${barber.name}` : `Book with ${barber.name}`}</span>
+                        <ArrowRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* 3. Editorial Services List */}
       <section id="services" className="mx-auto max-w-7xl px-4 sm:px-6 w-full scroll-mt-24 space-y-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/10 pb-6">
           <div className="space-y-2">
@@ -218,7 +302,7 @@ export function PublicHome({
         )}
       </section>
 
-      {/* 3. Asymmetric Editorial Portfolio Grid */}
+      {/* 4. Asymmetric Editorial Portfolio Grid */}
       {portfolio.length > 0 && (
         <section id="portfolio" className="mx-auto max-w-7xl px-4 sm:px-6 w-full scroll-mt-24 space-y-10">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/10 pb-6">
@@ -229,28 +313,46 @@ export function PublicHome({
               </h2>
             </div>
 
-            {/* Category Filter Pills */}
-            {categories.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant={selectedCategory === "all" ? "default" : "outline"}
-                  size="xs"
-                  onClick={() => setSelectedCategory("all")}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Barber Filter */}
+              {barbers.length > 1 && (
+                <select
+                  value={selectedBarberFilter}
+                  onChange={(e) => setSelectedBarberFilter(e.target.value)}
+                  className="h-8 rounded-sm bg-card border border-white/10 text-xs px-3 text-foreground font-mono focus:border-primary"
                 >
-                  {t.allCategories}
-                </Button>
-                {categories.map((cat) => (
+                  <option value="all">{lang === "hu" ? "Minden borbély" : "All Barbers"}</option>
+                  {barbers.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Category Filter Pills */}
+              {categories.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
-                    key={cat}
-                    variant={selectedCategory === cat ? "default" : "outline"}
+                    variant={selectedCategory === "all" ? "default" : "outline"}
                     size="xs"
-                    onClick={() => setSelectedCategory(cat)}
+                    onClick={() => setSelectedCategory("all")}
                   >
-                    {cat}
+                    {t.allCategories}
                   </Button>
-                ))}
-              </div>
-            )}
+                  {categories.map((cat) => (
+                    <Button
+                      key={cat}
+                      variant={selectedCategory === cat ? "default" : "outline"}
+                      size="xs"
+                      onClick={() => setSelectedCategory(cat)}
+                    >
+                      {cat}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Asymmetric Gallery Grid */}
@@ -258,6 +360,7 @@ export function PublicHome({
             {filteredPortfolio.map((item, idx) => {
               const url = getPublicUrl(item.image_path);
               const title = getLocalizedField(item, "title", lang);
+              const barberName = barbers.find((b) => b.id === item.barber_id)?.name;
               const colSpanClass =
                 idx === 0
                   ? "lg:col-span-8 aspect-16/9"
@@ -282,11 +385,18 @@ export function PublicHome({
                         {title}
                       </span>
                     )}
-                    {item.category && (
-                      <span className="text-xs text-primary/90 uppercase tracking-[0.2em] font-sans mt-0.5">
-                        {item.category}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2 mt-1">
+                      {barberName && (
+                        <span className="text-xs text-primary font-mono font-semibold uppercase tracking-wider">
+                          BY {barberName}
+                        </span>
+                      )}
+                      {item.category && (
+                        <span className="text-xs text-muted-foreground uppercase tracking-widest font-sans">
+                          · {item.category}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -313,7 +423,7 @@ export function PublicHome({
         </div>
       )}
 
-      {/* 4. Architectural Opening Hours & Location Section */}
+      {/* 5. Opening Hours & Location Section */}
       <section id="hours" className="mx-auto max-w-7xl px-4 sm:px-6 w-full scroll-mt-24">
         <div className="grid gap-12 lg:grid-cols-2">
           {/* Left Column: Opening Hours */}
@@ -444,7 +554,7 @@ export function PublicHome({
         </div>
       </section>
 
-      {/* 5. Final Editorial Booking CTA */}
+      {/* 6. Final Editorial Booking CTA */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 w-full">
         <div className="rounded-sm border border-white/10 bg-card p-10 sm:p-20 text-center space-y-8 relative overflow-hidden shadow-2xl">
           <div className="space-y-3">

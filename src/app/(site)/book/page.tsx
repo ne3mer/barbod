@@ -1,10 +1,15 @@
-import { getPublicBusiness, getPublicServices } from "@/lib/public/business";
+import {
+  getPublicBusiness,
+  getPublicServices,
+  getPublicBarbers,
+  getPublicBarberServicesMap,
+} from "@/lib/public/business";
 import { BookingFlow } from "@/components/public/booking-flow";
 
 export const metadata = {
   title: "Book Appointment | Barbod Barber Budapest",
   description:
-    "Select your barber service, choose a date and time slot, and confirm your appointment online.",
+    "Select your barber, pick your service, choose a date and time slot, and confirm your appointment online.",
 };
 
 export default async function PublicBookingPage() {
@@ -21,7 +26,18 @@ export default async function PublicBookingPage() {
     );
   }
 
-  const services = await getPublicServices(business.id);
+  const [barbers, services, barberServicesMap] = await Promise.all([
+    getPublicBarbers(business.id),
+    getPublicServices(business.id),
+    getPublicBarberServicesMap(),
+  ]);
 
-  return <BookingFlow business={business} services={services} />;
+  return (
+    <BookingFlow
+      business={business}
+      barbers={barbers}
+      services={services}
+      barberServicesMap={barberServicesMap}
+    />
+  );
 }

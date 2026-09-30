@@ -26,12 +26,33 @@ const DAY_NAMES = [
   "Saturday",
 ];
 
-export async function saveWorkingHoursAction(schedules: DayScheduleInput[]) {
+export async function saveWorkingHoursAction(
+  schedules: DayScheduleInput[],
+  targetBarberId?: string
+) {
   const user = await requireAuthUser();
   const business = await getOwnedBusiness(user.id);
 
   if (!business) {
     return { error: "No business linked to account." };
+  }
+
+  const supabase = await createClient();
+
+  // Determine barber_id
+  let barberId = targetBarberId;
+  if (!barberId) {
+    const { data: firstBarber } = await supabase
+      .from("barbers")
+      .select("id")
+      .eq("business_id", business.id)
+      .limit(1)
+      .single();
+    barberId = firstBarber?.id;
+  }
+
+  if (!barberId) {
+    return { error: "No barber found for business." };
   }
 
   // Validate each day's schedule
@@ -43,7 +64,6 @@ export async function saveWorkingHoursAction(schedules: DayScheduleInput[]) {
         return { error: `${dayName} is active but has no working intervals.` };
       }
 
-      // Check valid times & start < end for each interval
       for (const inv of day.intervals) {
         if (!inv.start_time || !inv.end_time) {
           return { error: `Invalid time inputs on ${dayName}.` };
@@ -59,7 +79,6 @@ export async function saveWorkingHoursAction(schedules: DayScheduleInput[]) {
         }
       }
 
-      // Check overlaps between intervals on the same day
       const sorted = [...day.intervals].sort(
         (a, b) => timeStringToMinutes(a.start_time) - timeStringToMinutes(b.start_time)
       );
@@ -77,13 +96,11 @@ export async function saveWorkingHoursAction(schedules: DayScheduleInput[]) {
     }
   }
 
-  const supabase = await createClient();
-
-  // 1. Remove existing working hours for current business
+  // 1. Remove existing working hours for target barber
   const { error: deleteError } = await supabase
     .from("working_hours")
     .delete()
-    .eq("business_id", business.id);
+    .eq("barber_id", barberId);
 
   if (deleteError) {
     console.error("Failed to clear old working hours", deleteError.message);
@@ -93,6 +110,7 @@ export async function saveWorkingHoursAction(schedules: DayScheduleInput[]) {
   // 2. Prepare new rows to insert
   const rowsToInsert: Array<{
     business_id: string;
+    barber_id: string;
     day_of_week: number;
     start_time: string;
     end_time: string;
@@ -102,12 +120,12 @@ export async function saveWorkingHoursAction(schedules: DayScheduleInput[]) {
   for (const day of schedules) {
     if (day.is_active) {
       for (const inv of day.intervals) {
-        // Format as HH:MM:00 for Postgres time type
         const startTimeFormatted = inv.start_time.length === 5 ? `${inv.start_time}:00` : inv.start_time;
         const endTimeFormatted = inv.end_time.length === 5 ? `${inv.end_time}:00` : inv.end_time;
 
         rowsToInsert.push({
           business_id: business.id,
+          barber_id: barberId,
           day_of_week: day.day_of_week,
           start_time: startTimeFormatted,
           end_time: endTimeFormatted,

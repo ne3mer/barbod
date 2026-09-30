@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppointmentsManager } from "@/components/admin/appointments-manager";
 
 export const metadata = {
-  title: "Appointments | Barbod Admin",
+  title: "Schedule & Appointments | Barbod Admin",
 };
 
 export default async function AdminAppointmentsPage({
@@ -20,17 +20,31 @@ export default async function AdminAppointmentsPage({
 
   const supabase = await createClient();
 
-  // Load services for dropdown
+  // Load barbers
+  const { data: barbers } = await supabase
+    .from("barbers")
+    .select("*")
+    .eq("business_id", business.id)
+    .order("display_order", { ascending: true });
+
+  // Load services
   const { data: services } = await supabase
     .from("services")
     .select("*")
     .eq("business_id", business.id)
     .order("sort_order", { ascending: true });
 
-  // Load appointments with joined services
+  // Load blocked times
+  const { data: blockedTimes } = await supabase
+    .from("blocked_times")
+    .select("*")
+    .eq("business_id", business.id)
+    .order("start_at", { ascending: true });
+
+  // Load appointments with joined services and barbers
   const { data: appointments, error } = await supabase
     .from("appointments")
-    .select("*, services(*)")
+    .select("*, services(*), barbers(*)")
     .eq("business_id", business.id)
     .order("start_at", { ascending: false });
 
@@ -44,7 +58,9 @@ export default async function AdminAppointmentsPage({
   return (
     <AppointmentsManager
       initialAppointments={appointments ?? []}
+      barbers={barbers ?? []}
       services={services ?? []}
+      blockedTimes={blockedTimes ?? []}
       initialNewModalOpen={initialNewModalOpen}
     />
   );

@@ -1,11 +1,6 @@
 /**
  * Generated-style Database types for Supabase.
  * Keep in sync with supabase/migrations/*.
- *
- * Regenerate when linked to a project:
- *   npx supabase gen types typescript --project-id <ref> > src/types/database.ts
- * or for local:
- *   npx supabase gen types typescript --local > src/types/database.ts
  */
 
 export type Json =
@@ -119,6 +114,93 @@ export type Database = {
           },
         ];
       };
+      barbers: {
+        Row: {
+          id: string;
+          business_id: string;
+          user_id: string | null;
+          name: string;
+          profile_photo_url: string | null;
+          bio_en: string | null;
+          bio_hu: string | null;
+          is_active: boolean;
+          display_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          user_id?: string | null;
+          name: string;
+          profile_photo_url?: string | null;
+          bio_en?: string | null;
+          bio_hu?: string | null;
+          is_active?: boolean;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          user_id?: string | null;
+          name?: string;
+          profile_photo_url?: string | null;
+          bio_en?: string | null;
+          bio_hu?: string | null;
+          is_active?: boolean;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "barbers_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "barbers_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      barber_services: {
+        Row: {
+          barber_id: string;
+          service_id: string;
+        };
+        Insert: {
+          barber_id: string;
+          service_id: string;
+        };
+        Update: {
+          barber_id?: string;
+          service_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "barber_services_barber_id_fkey";
+            columns: ["barber_id"];
+            isOneToOne: false;
+            referencedRelation: "barbers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "barber_services_service_id_fkey";
+            columns: ["service_id"];
+            isOneToOne: false;
+            referencedRelation: "services";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       services: {
         Row: {
           id: string;
@@ -179,6 +261,7 @@ export type Database = {
         Row: {
           id: string;
           business_id: string;
+          barber_id: string;
           day_of_week: number;
           start_time: string;
           end_time: string;
@@ -189,6 +272,7 @@ export type Database = {
         Insert: {
           id?: string;
           business_id: string;
+          barber_id: string;
           day_of_week: number;
           start_time: string;
           end_time: string;
@@ -199,6 +283,7 @@ export type Database = {
         Update: {
           id?: string;
           business_id?: string;
+          barber_id?: string;
           day_of_week?: number;
           start_time?: string;
           end_time?: string;
@@ -214,12 +299,20 @@ export type Database = {
             referencedRelation: "businesses";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "working_hours_barber_id_fkey";
+            columns: ["barber_id"];
+            isOneToOne: false;
+            referencedRelation: "barbers";
+            referencedColumns: ["id"];
+          },
         ];
       };
       blocked_times: {
         Row: {
           id: string;
           business_id: string;
+          barber_id: string;
           start_at: string;
           end_at: string;
           reason: string | null;
@@ -229,6 +322,7 @@ export type Database = {
         Insert: {
           id?: string;
           business_id: string;
+          barber_id: string;
           start_at: string;
           end_at: string;
           reason?: string | null;
@@ -238,6 +332,7 @@ export type Database = {
         Update: {
           id?: string;
           business_id?: string;
+          barber_id?: string;
           start_at?: string;
           end_at?: string;
           reason?: string | null;
@@ -252,12 +347,20 @@ export type Database = {
             referencedRelation: "businesses";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "blocked_times_barber_id_fkey";
+            columns: ["barber_id"];
+            isOneToOne: false;
+            referencedRelation: "barbers";
+            referencedColumns: ["id"];
+          },
         ];
       };
       appointments: {
         Row: {
           id: string;
           business_id: string;
+          barber_id: string;
           service_id: string;
           customer_name: string;
           customer_phone: string;
@@ -272,6 +375,7 @@ export type Database = {
         Insert: {
           id?: string;
           business_id: string;
+          barber_id: string;
           service_id: string;
           customer_name: string;
           customer_phone: string;
@@ -286,6 +390,7 @@ export type Database = {
         Update: {
           id?: string;
           business_id?: string;
+          barber_id?: string;
           service_id?: string;
           customer_name?: string;
           customer_phone?: string;
@@ -306,6 +411,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "appointments_barber_id_fkey";
+            columns: ["barber_id"];
+            isOneToOne: false;
+            referencedRelation: "barbers";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "appointments_service_id_fkey";
             columns: ["service_id"];
             isOneToOne: false;
@@ -318,6 +430,7 @@ export type Database = {
         Row: {
           id: string;
           business_id: string;
+          barber_id: string;
           title_en: string | null;
           title_hu: string | null;
           image_path: string;
@@ -330,6 +443,7 @@ export type Database = {
         Insert: {
           id?: string;
           business_id: string;
+          barber_id: string;
           title_en?: string | null;
           title_hu?: string | null;
           image_path: string;
@@ -342,6 +456,7 @@ export type Database = {
         Update: {
           id?: string;
           business_id?: string;
+          barber_id?: string;
           title_en?: string | null;
           title_hu?: string | null;
           image_path?: string;
@@ -359,6 +474,13 @@ export type Database = {
             referencedRelation: "businesses";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "portfolio_items_barber_id_fkey";
+            columns: ["barber_id"];
+            isOneToOne: false;
+            referencedRelation: "barbers";
+            referencedColumns: ["id"];
+          },
         ];
       };
     };
@@ -368,13 +490,21 @@ export type Database = {
         Args: { p_business_id: string };
         Returns: boolean;
       };
+      is_barber_owner_or_self: {
+        Args: { p_barber_id: string };
+        Returns: boolean;
+      };
+      get_authenticated_barber_id: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
       portfolio_object_business_id: {
         Args: { object_name: string };
         Returns: string;
       };
       get_occupied_intervals: {
         Args: {
-          p_business_id: string;
+          p_barber_id: string;
           p_start_at: string;
           p_end_at: string;
         };

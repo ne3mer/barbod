@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { budapestDateTimeToUtc } from "@/lib/utils/dates";
 
 export type BlockedTimeInput = {
+  barber_id?: string;
   startDate: string; // YYYY-MM-DD
   startTime: string; // HH:MM
   endDate: string;   // YYYY-MM-DD
@@ -25,6 +26,24 @@ export async function createBlockedTimeAction(data: BlockedTimeInput) {
     return { error: "Start date, start time, end date, and end time are required." };
   }
 
+  const supabase = await createClient();
+
+  // Determine barber_id
+  let barberId = data.barber_id;
+  if (!barberId) {
+    const { data: firstBarber } = await supabase
+      .from("barbers")
+      .select("id")
+      .eq("business_id", business.id)
+      .limit(1)
+      .single();
+    barberId = firstBarber?.id;
+  }
+
+  if (!barberId) {
+    return { error: "No barber found for business." };
+  }
+
   const startUtc = budapestDateTimeToUtc(data.startDate, data.startTime);
   const endUtc = budapestDateTimeToUtc(data.endDate, data.endTime);
 
@@ -32,10 +51,9 @@ export async function createBlockedTimeAction(data: BlockedTimeInput) {
     return { error: "Start date/time must be strictly earlier than end date/time." };
   }
 
-  const supabase = await createClient();
-
   const { error } = await supabase.from("blocked_times").insert({
     business_id: business.id,
+    barber_id: barberId,
     start_at: startUtc.toISOString(),
     end_at: endUtc.toISOString(),
     reason: data.reason?.trim() || null,
@@ -71,13 +89,24 @@ export async function updateBlockedTimeAction(
 
   const supabase = await createClient();
 
+  const updateData: {
+    start_at: string;
+    end_at: string;
+    reason: string | null;
+    barber_id?: string;
+  } = {
+    start_at: startUtc.toISOString(),
+    end_at: endUtc.toISOString(),
+    reason: data.reason?.trim() || null,
+  };
+
+  if (data.barber_id) {
+    updateData.barber_id = data.barber_id;
+  }
+
   const { error } = await supabase
     .from("blocked_times")
-    .update({
-      start_at: startUtc.toISOString(),
-      end_at: endUtc.toISOString(),
-      reason: data.reason?.trim() || null,
-    })
+    .update(updateData)
     .eq("id", id)
     .eq("business_id", business.id);
 

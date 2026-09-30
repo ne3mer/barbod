@@ -11,6 +11,7 @@ import {
 import type { AppointmentStatus } from "@/types";
 
 export type AppointmentInput = {
+  barber_id: string;
   service_id: string;
   customer_name: string;
   customer_phone: string;
@@ -29,19 +30,34 @@ export async function createAppointmentAction(data: AppointmentInput) {
     return { error: "No business linked to account." };
   }
 
+  if (!data.barber_id) {
+    return { error: "Please select a barber." };
+  }
+  if (!data.service_id) {
+    return { error: "Please select a service." };
+  }
   if (!data.customer_name?.trim()) {
     return { error: "Customer name is required." };
   }
   if (!data.customer_phone?.trim()) {
     return { error: "Customer phone is required." };
   }
-  if (!data.service_id) {
-    return { error: "Please select a service." };
-  }
 
   const supabase = await createClient();
 
-  // 1. Verify service belongs to current business
+  // 1. Verify barber belongs to business & is active
+  const { data: barber, error: barErr } = await supabase
+    .from("barbers")
+    .select("*")
+    .eq("id", data.barber_id)
+    .eq("business_id", business.id)
+    .single();
+
+  if (barErr || !barber) {
+    return { error: "Invalid barber selected." };
+  }
+
+  // 2. Verify service belongs to business
   const { data: service, error: svcError } = await supabase
     .from("services")
     .select("*")
@@ -53,7 +69,19 @@ export async function createAppointmentAction(data: AppointmentInput) {
     return { error: "Invalid service selected." };
   }
 
-  // 2. Calculate start and end UTC timestamps
+  // 3. Verify barber offers service
+  const { data: assignment } = await supabase
+    .from("barber_services")
+    .select("barber_id")
+    .eq("barber_id", data.barber_id)
+    .eq("service_id", data.service_id)
+    .maybeSingle();
+
+  if (!assignment) {
+    return { error: "Selected barber does not offer this service." };
+  }
+
+  // 4. Calculate start and end UTC timestamps
   const startUtc = budapestDateTimeToUtc(data.startDate, data.startTime);
   const endUtc = new Date(
     startUtc.getTime() + service.duration_minutes * 60 * 1000
@@ -62,26 +90,26 @@ export async function createAppointmentAction(data: AppointmentInput) {
   const startIso = startUtc.toISOString();
   const endIso = endUtc.toISOString();
 
-  // 3. Check appointment overlaps
+  // 5. Check barber appointment overlaps
   const { data: appOverlaps } = await supabase
     .from("appointments")
     .select("id, customer_name, start_at, end_at")
-    .eq("business_id", business.id)
+    .eq("barber_id", data.barber_id)
     .in("status", ["pending", "confirmed"])
     .lt("start_at", endIso)
     .gt("end_at", startIso);
 
   if (appOverlaps && appOverlaps.length > 0) {
     return {
-      error: `Overlapping appointment detected! Conflict with existing booking for ${appOverlaps[0].customer_name}.`,
+      error: `Overlapping appointment for ${barber.name}! Conflict with booking for ${appOverlaps[0].customer_name}.`,
     };
   }
 
-  // 4. Check blocked times overlaps
+  // 6. Check barber blocked times overlaps
   const { data: blockedOverlaps } = await supabase
     .from("blocked_times")
     .select("id, reason")
-    .eq("business_id", business.id)
+    .eq("barber_id", data.barber_id)
     .lt("start_at", endIso)
     .gt("end_at", startIso);
 
@@ -90,23 +118,23 @@ export async function createAppointmentAction(data: AppointmentInput) {
       ? ` (${blockedOverlaps[0].reason})`
       : "";
     return {
-      error: `Cannot create appointment during a blocked time period${reasonText}.`,
+      error: `Cannot create appointment during ${barber.name}'s blocked time period${reasonText}.`,
     };
   }
 
-  // 5. Check working hours
+  // 7. Check barber working hours
   const startParts = utcToBudapestParts(startUtc);
   const endParts = utcToBudapestParts(endUtc);
 
   const { data: workingHours } = await supabase
     .from("working_hours")
     .select("*")
-    .eq("business_id", business.id)
+    .eq("barber_id", data.barber_id)
     .eq("day_of_week", startParts.dayOfWeek)
     .eq("is_active", true);
 
   if (!workingHours || workingHours.length === 0) {
-    return { error: "The business is closed on this day according to working hours." };
+    return { error: `${barber.name} is not scheduled to work on this day.` };
   }
 
   const appStartMins = timeStringToMinutes(startParts.timeStr);
@@ -120,13 +148,14 @@ export async function createAppointmentAction(data: AppointmentInput) {
 
   if (!fitsInSchedule) {
     return {
-      error: "Appointment duration falls outside configured working hours for this day.",
+      error: `Appointment duration falls outside ${barber.name}'s working hours for this day.`,
     };
   }
 
-  // 6. Insert appointment
+  // 8. Insert appointment with barber_id
   const { error: insertError } = await supabase.from("appointments").insert({
     business_id: business.id,
+    barber_id: barber.id,
     service_id: service.id,
     customer_name: data.customer_name.trim(),
     customer_phone: data.customer_phone.trim(),
@@ -140,7 +169,7 @@ export async function createAppointmentAction(data: AppointmentInput) {
   if (insertError) {
     console.error("Failed to insert appointment", insertError.message);
     if (insertError.message.includes("appointments_no_overlap")) {
-      return { error: "This time slot is already booked for another appointment." };
+      return { error: `This time slot is already booked for ${barber.name}.` };
     }
     return { error: insertError.message };
   }
@@ -183,7 +212,8 @@ export async function rescheduleAppointmentAction(
   id: string,
   startDate: string,
   startTime: string,
-  service_id?: string
+  service_id?: string,
+  barber_id?: string
 ) {
   const user = await requireAuthUser();
   const business = await getOwnedBusiness(user.id);
@@ -194,7 +224,6 @@ export async function rescheduleAppointmentAction(
 
   const supabase = await createClient();
 
-  // Get current appointment
   const { data: app, error: appErr } = await supabase
     .from("appointments")
     .select("*")
@@ -206,9 +235,9 @@ export async function rescheduleAppointmentAction(
     return { error: "Appointment not found." };
   }
 
+  const targetBarberId = barber_id || app.barber_id;
   const targetServiceId = service_id || app.service_id;
 
-  // Fetch service for duration
   const { data: service, error: svcError } = await supabase
     .from("services")
     .select("*")
@@ -228,19 +257,19 @@ export async function rescheduleAppointmentAction(
   const startIso = startUtc.toISOString();
   const endIso = endUtc.toISOString();
 
-  // Check working hours
+  // Check working hours for target barber
   const startParts = utcToBudapestParts(startUtc);
   const endParts = utcToBudapestParts(endUtc);
 
   const { data: workingHours } = await supabase
     .from("working_hours")
     .select("*")
-    .eq("business_id", business.id)
+    .eq("barber_id", targetBarberId)
     .eq("day_of_week", startParts.dayOfWeek)
     .eq("is_active", true);
 
   if (!workingHours || workingHours.length === 0) {
-    return { error: "The business is closed on this day according to working hours." };
+    return { error: "Barber is not working on this day." };
   }
 
   const appStartMins = timeStringToMinutes(startParts.timeStr);
@@ -253,16 +282,14 @@ export async function rescheduleAppointmentAction(
   });
 
   if (!fitsInSchedule) {
-    return {
-      error: "Appointment duration falls outside configured working hours for this day.",
-    };
+    return { error: "Appointment duration falls outside barber working hours." };
   }
 
-  // Overlap checks (exclude current appointment)
+  // Overlap checks for target barber
   const { data: appOverlaps } = await supabase
     .from("appointments")
     .select("id, customer_name")
-    .eq("business_id", business.id)
+    .eq("barber_id", targetBarberId)
     .neq("id", id)
     .in("status", ["pending", "confirmed"])
     .lt("start_at", endIso)
@@ -277,7 +304,7 @@ export async function rescheduleAppointmentAction(
   const { data: blockedOverlaps } = await supabase
     .from("blocked_times")
     .select("id, reason")
-    .eq("business_id", business.id)
+    .eq("barber_id", targetBarberId)
     .lt("start_at", endIso)
     .gt("end_at", startIso);
 
@@ -288,6 +315,7 @@ export async function rescheduleAppointmentAction(
   const { error: updateErr } = await supabase
     .from("appointments")
     .update({
+      barber_id: targetBarberId,
       service_id: targetServiceId,
       start_at: startIso,
       end_at: endIso,
@@ -298,7 +326,7 @@ export async function rescheduleAppointmentAction(
   if (updateErr) {
     console.error("Failed to reschedule", updateErr.message);
     if (updateErr.message.includes("appointments_no_overlap")) {
-      return { error: "This time slot is already booked for another appointment." };
+      return { error: "This time slot is already booked for this barber." };
     }
     return { error: updateErr.message };
   }

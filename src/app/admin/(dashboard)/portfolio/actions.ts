@@ -7,6 +7,7 @@ import type { PortfolioCategory } from "@/types";
 import type { TablesUpdate } from "@/types/database";
 
 export type PortfolioInput = {
+  barber_id?: string;
   title_en?: string | null;
   title_hu?: string | null;
   image_path: string;
@@ -28,6 +29,22 @@ export async function createPortfolioItemAction(data: PortfolioInput) {
 
   const supabase = await createClient();
 
+  // Determine barber_id
+  let barberId = data.barber_id;
+  if (!barberId) {
+    const { data: firstBarber } = await supabase
+      .from("barbers")
+      .select("id")
+      .eq("business_id", business.id)
+      .limit(1)
+      .single();
+    barberId = firstBarber?.id;
+  }
+
+  if (!barberId) {
+    return { error: "No barber found for business." };
+  }
+
   // Get next sort order
   const { count } = await supabase
     .from("portfolio_items")
@@ -36,6 +53,7 @@ export async function createPortfolioItemAction(data: PortfolioInput) {
 
   const { error } = await supabase.from("portfolio_items").insert({
     business_id: business.id,
+    barber_id: barberId,
     title_en: data.title_en?.trim() || null,
     title_hu: data.title_hu?.trim() || null,
     image_path: data.image_path,
@@ -68,6 +86,7 @@ export async function updatePortfolioItemAction(
   const supabase = await createClient();
 
   const updatePayload: TablesUpdate<"portfolio_items"> = {};
+  if (data.barber_id !== undefined) updatePayload.barber_id = data.barber_id;
   if (data.title_en !== undefined) updatePayload.title_en = data.title_en?.trim() || null;
   if (data.title_hu !== undefined) updatePayload.title_hu = data.title_hu?.trim() || null;
   if (data.category !== undefined) updatePayload.category = data.category;

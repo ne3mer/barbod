@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Ban,
   LayoutDashboard,
+  Users,
 } from "lucide-react";
 
 import { signOutAction } from "@/app/admin/(dashboard)/actions";
@@ -26,7 +27,8 @@ type AdminShellProps = {
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/admin/appointments", label: "Appointments", icon: Calendar },
+  { href: "/admin/appointments", label: "Schedule", icon: Calendar },
+  { href: "/admin/barbers", label: "Barbers", icon: Users },
   { href: "/admin/services", label: "Services", icon: Scissors },
   { href: "/admin/working-hours", label: "Working Hours", icon: Clock },
   { href: "/admin/blocked-times", label: "Blocked Times", icon: Ban },

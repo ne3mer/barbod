@@ -15,27 +15,29 @@ export type AvailableSlot = {
 
 export type CalculateSlotsParams = {
   businessId: string;
+  barberId: string;
   serviceId: string;
   dateStr: string; // YYYY-MM-DD in Europe/Budapest
   incrementMinutes?: number; // default 30
 };
 
 /**
- * Calculates available booking slots for a given business, service, and date.
- * Fully accounts for working hours, multiple intervals, service duration,
+ * Calculates available booking slots for a given barber, service, and date.
+ * Fully accounts for barber working hours, service duration,
  * existing active appointments (pending/confirmed), blocked times, and past times.
- *
- * Uses the SECURITY DEFINER PostgreSQL RPC `get_occupied_intervals` so that public/anon
- * users can accurately determine slot availability without exposing private customer PII,
- * notes, or blocked-time details over RLS.
  */
 export async function calculateAvailableSlots({
   businessId,
+  barberId,
   serviceId,
   dateStr,
   incrementMinutes = 30,
 }: CalculateSlotsParams): Promise<AvailableSlot[]> {
   const supabase = await createClient();
+
+  if (!barberId || !serviceId || !dateStr) {
+    return [];
+  }
 
   // 1. Fetch target service
   const { data: service, error: svcError } = await supabase
@@ -49,34 +51,57 @@ export async function calculateAvailableSlots({
     return [];
   }
 
+  // 2. Fetch barber & check assignment
+  const { data: barber, error: barError } = await supabase
+    .from("barbers")
+    .select("id, is_active")
+    .eq("id", barberId)
+    .eq("business_id", businessId)
+    .single();
+
+  if (barError || !barber || !barber.is_active) {
+    return [];
+  }
+
+  const { data: assignment } = await supabase
+    .from("barber_services")
+    .select("barber_id")
+    .eq("barber_id", barberId)
+    .eq("service_id", serviceId)
+    .maybeSingle();
+
+  if (!assignment) {
+    return [];
+  }
+
   const durationMinutes = service.duration_minutes;
 
-  // 2. Determine day of week for dateStr in Europe/Budapest
+  // 3. Determine day of week for dateStr in Europe/Budapest
   const sampleUtc = budapestDateTimeToUtc(dateStr, "12:00");
   const dayParts = utcToBudapestParts(sampleUtc);
   const dayOfWeek = dayParts.dayOfWeek;
 
-  // 3. Fetch active working hours for this weekday
+  // 4. Fetch active working hours for this barber on this weekday
   const { data: workingHours, error: whError } = await supabase
     .from("working_hours")
     .select("*")
-    .eq("business_id", businessId)
+    .eq("barber_id", barberId)
     .eq("day_of_week", dayOfWeek)
     .eq("is_active", true)
     .order("start_time", { ascending: true });
 
   if (whError || !workingHours || workingHours.length === 0) {
-    return []; // Business closed on this day
+    return []; // Barber closed on this day
   }
 
-  // 4. Fetch occupied intervals (active appointments & blocked times) via SECURITY DEFINER RPC
+  // 5. Fetch occupied intervals (active appointments & blocked times) via SECURITY DEFINER RPC
   const dayStartUtc = budapestDateTimeToUtc(dateStr, "00:00");
   const dayEndUtc = budapestDateTimeToUtc(dateStr, "23:59");
 
   const { data: occupiedIntervals, error: rpcError } = await supabase.rpc(
     "get_occupied_intervals",
     {
-      p_business_id: businessId,
+      p_barber_id: barberId,
       p_start_at: dayStartUtc.toISOString(),
       p_end_at: dayEndUtc.toISOString(),
     }
@@ -94,7 +119,7 @@ export async function calculateAvailableSlots({
   const now = new Date();
   const slots: AvailableSlot[] = [];
 
-  // 5. Iterate through working hour intervals for the day
+  // 6. Iterate through working hour intervals for the barber
   for (const interval of workingHours) {
     const intervalStartMins = timeStringToMinutes(interval.start_time);
     const intervalEndMins = timeStringToMinutes(interval.end_time);
@@ -141,10 +166,11 @@ export async function calculateAvailableSlots({
 }
 
 /**
- * Checks if a specific date (YYYY-MM-DD) has at least 1 available slot for the given service.
+ * Checks if a specific date (YYYY-MM-DD) has at least 1 available slot for the given barber & service.
  */
 export async function getAvailableDates(
   businessId: string,
+  barberId: string,
   serviceId: string,
   daysAhead = 30
 ): Promise<string[]> {
@@ -160,6 +186,7 @@ export async function getAvailableDates(
 
     const slots = await calculateAvailableSlots({
       businessId,
+      barberId,
       serviceId,
       dateStr,
     });
