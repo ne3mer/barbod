@@ -32,3 +32,8 @@ export function isSupabaseConfigured(): boolean {
         process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
   );
 }
+
+export function getSupabaseServiceRoleKey(): string | undefined {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+

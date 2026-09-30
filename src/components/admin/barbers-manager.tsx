@@ -11,6 +11,10 @@ import {
   Loader2,
   Power,
   Upload,
+  Mail,
+  Send,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 import type { Tables } from "@/types/database";
@@ -33,6 +37,7 @@ import {
   deleteBarberAction,
   uploadBarberProfilePhotoAction,
   deleteBarberProfilePhotoAction,
+  inviteBarberUserAction,
 } from "@/app/admin/(dashboard)/barbers/actions";
 
 export type BarberWithServices = Tables<"barbers"> & {
@@ -63,6 +68,37 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
   const [photoError, setPhotoError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+
+  // Invitation Dialog State
+  const [invitingBarber, setInvitingBarber] = React.useState<BarberWithServices | null>(null);
+  const [inviteEmail, setInviteEmail] = React.useState("");
+  const [isSendingInvite, setIsSendingInvite] = React.useState(false);
+  const [inviteStatus, setInviteStatus] = React.useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  const handleOpenInviteModal = (barber: BarberWithServices) => {
+    setInvitingBarber(barber);
+    setInviteEmail("");
+    setInviteStatus(null);
+  };
+
+  const handleSendInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invitingBarber || !inviteEmail.trim()) return;
+    setIsSendingInvite(true);
+    setInviteStatus(null);
+
+    const res = await inviteBarberUserAction(invitingBarber.id, inviteEmail);
+    setIsSendingInvite(false);
+
+    if (res.error) {
+      setInviteStatus({ type: "error", msg: res.error });
+    } else {
+      setInviteStatus({
+        type: "success",
+        msg: `Invitation sent to ${res.email}! Account is linked to ${invitingBarber.name}.`,
+      });
+    }
+  };
 
   const handleOpenAdd = () => {
     setEditingBarber(null);
@@ -344,6 +380,15 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                       <Button
                         variant="outline"
                         size="xs"
+                        onClick={() => handleOpenInviteModal(barber)}
+                        className="gap-1 text-xs text-primary border-primary/30 hover:bg-primary/10"
+                      >
+                        <Mail className="size-3" />
+                        <span>Invite</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="xs"
                         onClick={() => handleOpenEdit(barber)}
                         className="gap-1 text-xs"
                       >
@@ -364,6 +409,82 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Invite Barber Auth Dialog */}
+      {invitingBarber && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-sm border border-border bg-background p-6 shadow-2xl space-y-5">
+            <div className="border-b border-border pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail className="size-5 text-primary" />
+                <h2 className="text-lg font-bold font-serif">
+                  Invite Barber Login: {invitingBarber.name}
+                </h2>
+              </div>
+              <Button variant="ghost" size="xs" onClick={() => setInvitingBarber(null)}>
+                ✕
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Sends an official authentication invitation email via Supabase Auth Admin API.
+              The barber will receive a password setup link, and their login account will be automatically linked to this barber profile upon confirmation.
+            </p>
+
+            {inviteStatus && (
+              <div
+                className={`p-3 text-xs rounded-sm border flex items-start gap-2 ${
+                  inviteStatus.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                    : "bg-destructive/10 border-destructive/20 text-destructive"
+                }`}
+              >
+                {inviteStatus.type === "success" ? (
+                  <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                )}
+                <span>{inviteStatus.msg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSendInviteSubmit} className="space-y-4 text-sm">
+              <div className="space-y-1.5">
+                <Label htmlFor="inv_email" className="text-xs uppercase tracking-wider font-semibold">
+                  Barber Email Address *
+                </Label>
+                <Input
+                  id="inv_email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="e.g. barber@barbod.com"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button variant="outline" size="sm" type="button" onClick={() => setInvitingBarber(null)}>
+                  Cancel
+                </Button>
+                <Button size="sm" type="submit" disabled={isSendingInvite} className="gap-2">
+                  {isSendingInvite ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      <span>Sending Invitation...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-4" />
+                      <span>Send Auth Invitation</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
