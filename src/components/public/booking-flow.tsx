@@ -166,7 +166,17 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
     setSubmitting(false);
 
     if (res.error) {
-      setErrorMsg(res.error);
+      if (res.errorCode === "SLOT_UNAVAILABLE") {
+        setErrorMsg(t.errorConflict);
+      } else if (res.errorCode === "REQUIRED_FIELDS") {
+        setErrorMsg(t.errorRequiredFields);
+      } else if (res.errorCode === "PAST_DATE") {
+        setErrorMsg(t.errorPastBooking);
+      } else if (res.errorCode === "SERVICE_UNAVAILABLE") {
+        setErrorMsg(t.errorServiceUnavailable);
+      } else {
+        setErrorMsg(t.errorGeneric);
+      }
     } else if (res.success && res.booking) {
       setConfirmedBooking(res.booking as ConfirmedBookingSummary);
       setStep(5);
@@ -185,7 +195,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
               {t.bookingTitle}
             </h1>
             <span className="text-xs text-muted-foreground font-medium">
-              Step {step} of 4
+              {t.stepOf.replace("{step}", String(step))}
             </span>
           </div>
 
@@ -240,7 +250,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">
-                      {desc || "Professional haircut & styling"}
+                      {desc || t.defaultServiceDesc}
                     </p>
                   </div>
 
@@ -266,7 +276,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
           <div className="flex items-center justify-between border-b pb-4">
             <div>
               <span className="text-xs text-muted-foreground uppercase font-semibold">
-                Selected Service
+                {t.selectedServiceLabel}
               </span>
               <h3 className="text-lg font-bold text-foreground">
                 {selectedService && getLocalizedField(selectedService, "name", lang)}
@@ -279,7 +289,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
               className="gap-1 text-xs"
             >
               <ArrowLeft className="size-3.5" />
-              <span>Change Service</span>
+              <span>{t.changeService}</span>
             </Button>
           </div>
 
@@ -292,7 +302,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="date_picker" className="text-xs">
-                  Date (Europe/Budapest Time)
+                  {t.dateLabel}
                 </Label>
                 <Input
                   id="date_picker"
@@ -449,7 +459,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             <div className="border-b pb-4 flex items-center justify-between">
               <div>
                 <span className="text-xs text-muted-foreground uppercase font-semibold">
-                  Service
+                  {t.serviceLabel}
                 </span>
                 <h3 className="text-lg font-bold text-foreground">
                   {getLocalizedField(selectedService, "name", lang)}
@@ -463,17 +473,17 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             <div className="grid gap-4 sm:grid-cols-2 text-sm">
               <div>
                 <span className="text-xs text-muted-foreground block">
-                  Date & Time
+                  {t.dateTimeLabel}
                 </span>
                 <span className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
                   <CalendarIcon className="size-4 text-primary" />
-                  {selectedDate} at {selectedSlot.formattedTime}
+                  {selectedDate} {selectedSlot.formattedTime}
                 </span>
               </div>
 
               <div>
                 <span className="text-xs text-muted-foreground block">
-                  Duration
+                  {t.durationLabel}
                 </span>
                 <span className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
                   <Clock className="size-4 text-primary" />
@@ -504,7 +514,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
 
             {notes && (
               <div className="border-t pt-3 text-xs">
-                <span className="text-muted-foreground block font-medium">Notes</span>
+                <span className="text-muted-foreground block font-medium">{t.notesLabel}</span>
                 <p className="mt-1 text-foreground bg-muted/40 p-2.5 rounded-lg">
                   {notes}
                 </p>
@@ -566,30 +576,30 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             </h3>
 
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Service:</span>
+              <span className="text-muted-foreground">{t.serviceLabel}:</span>
               <span className="font-semibold text-foreground">
                 {lang === "hu"
-                  ? confirmedBooking.serviceNameHu
+                  ? confirmedBooking.serviceNameHu || confirmedBooking.serviceNameEn
                   : confirmedBooking.serviceNameEn}
               </span>
             </div>
 
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Date & Time:</span>
+              <span className="text-muted-foreground">{t.dateTimeLabel}:</span>
               <span className="font-semibold text-foreground">
-                {confirmedBooking.dateStr} at {confirmedBooking.startTimeStr}
+                {confirmedBooking.dateStr} {confirmedBooking.startTimeStr}
               </span>
             </div>
 
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Customer:</span>
+              <span className="text-muted-foreground">{t.customerLabel}:</span>
               <span className="font-semibold text-foreground">
                 {confirmedBooking.customerName}
               </span>
             </div>
 
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Price:</span>
+              <span className="text-muted-foreground">{t.priceLabel}:</span>
               <span className="font-bold text-primary">
                 {confirmedBooking.price} {confirmedBooking.currency}
               </span>

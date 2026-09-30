@@ -268,7 +268,7 @@ export function WorkingHoursEditor({
                               e.target.value
                             )
                           }
-                          className="w-32 text-xs font-mono"
+                          className="w-28 sm:w-32 text-xs font-mono"
                         />
                         <span className="text-xs text-muted-foreground">to</span>
                         <Input
@@ -282,7 +282,7 @@ export function WorkingHoursEditor({
                               e.target.value
                             )
                           }
-                          className="w-32 text-xs font-mono"
+                          className="w-28 sm:w-32 text-xs font-mono"
                         />
                       </div>
 

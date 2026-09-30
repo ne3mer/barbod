@@ -37,7 +37,7 @@ export function SiteFooter() {
               {t.navHours}
             </Link>
             <Link href="/admin/login" className="hover:text-foreground transition-colors">
-              Admin Login
+              {t.adminLogin}
             </Link>
           </div>
         </div>

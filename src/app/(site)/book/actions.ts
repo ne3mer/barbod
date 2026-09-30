@@ -63,17 +63,17 @@ export async function createPublicBookingAction(data: PublicBookingInput) {
   const business = await getPublicBusiness(slug);
 
   if (!business) {
-    return { error: "Business not found." };
+    return { error: "Business not found.", errorCode: "GENERIC" };
   }
 
   if (!data.customerName?.trim()) {
-    return { error: "Full name is required." };
+    return { error: "Full name is required.", errorCode: "REQUIRED_FIELDS" };
   }
   if (!data.customerPhone?.trim()) {
-    return { error: "Phone number is required." };
+    return { error: "Phone number is required.", errorCode: "REQUIRED_FIELDS" };
   }
   if (!data.serviceId || !data.dateStr || !data.startTimeStr) {
-    return { error: "Service, date, and time slot are required." };
+    return { error: "Service, date, and time slot are required.", errorCode: "REQUIRED_FIELDS" };
   }
 
   const supabase = await createClient();
@@ -88,7 +88,7 @@ export async function createPublicBookingAction(data: PublicBookingInput) {
     .single();
 
   if (svcError || !service) {
-    return { error: "Selected service is not active or available." };
+    return { error: "Selected service is not active or available.", errorCode: "SERVICE_UNAVAILABLE" };
   }
 
   // 2. Derive start and end UTC timestamps server-side
@@ -103,7 +103,7 @@ export async function createPublicBookingAction(data: PublicBookingInput) {
   // 3. Re-verify real-time availability server-side right before insert
   const now = new Date();
   if (startUtc.getTime() <= now.getTime()) {
-    return { error: "Cannot book an appointment in the past." };
+    return { error: "Cannot book an appointment in the past.", errorCode: "PAST_DATE" };
   }
 
   // Check occupied intervals (active appointments & blocked times) via SECURITY DEFINER RPC
@@ -121,7 +121,7 @@ export async function createPublicBookingAction(data: PublicBookingInput) {
   }
 
   if (occupied && occupied.length > 0) {
-    return { error: "This time is no longer available. Please choose another time." };
+    return { error: "This time is no longer available. Please choose another time.", errorCode: "SLOT_UNAVAILABLE" };
   }
 
   // 4. Insert public appointment with status = 'pending'
@@ -144,9 +144,9 @@ export async function createPublicBookingAction(data: PublicBookingInput) {
   if (insertError) {
     console.error("Public booking insert failed", insertError.message);
     if (insertError.message.includes("appointments_no_overlap")) {
-      return { error: "This time is no longer available. Please choose another time." };
+      return { error: "This time is no longer available. Please choose another time.", errorCode: "SLOT_UNAVAILABLE" };
     }
-    return { error: "An error occurred while creating your booking. Please try again." };
+    return { error: "An error occurred while creating your booking. Please try again.", errorCode: "GENERIC" };
   }
 
   return {

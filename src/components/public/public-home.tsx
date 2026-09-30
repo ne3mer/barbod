@@ -155,7 +155,7 @@ export function PublicHome({
                     </div>
 
                     <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-                      {desc || "Professional precision haircut and beard styling."}
+                      {desc || t.defaultServiceDesc}
                     </p>
                   </div>
 
@@ -279,7 +279,7 @@ export function PublicHome({
                 <h3 className="text-xl font-bold tracking-tight text-foreground font-serif">
                   {t.hoursTitle}
                 </h3>
-                <p className="text-xs text-muted-foreground">Europe/Budapest Timezone</p>
+                <p className="text-xs text-muted-foreground">{t.timezoneNotice}</p>
               </div>
             </div>
 
@@ -388,7 +388,7 @@ export function PublicHome({
                         rel="noreferrer"
                         className="font-medium text-primary hover:underline flex items-center gap-1"
                       >
-                        <span>Follow on Instagram</span>
+                        <span>{t.followInstagram}</span>
                         <ExternalLink className="size-3" />
                       </a>
                     </div>
@@ -413,10 +413,10 @@ export function PublicHome({
       <section className="mx-auto max-w-7xl px-4 sm:px-6 w-full">
         <div className="rounded-3xl bg-primary text-primary-foreground p-8 sm:p-12 text-center space-y-6 relative overflow-hidden shadow-lg">
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight font-serif max-w-xl mx-auto">
-            Ready for your next cut?
+            {t.readyTitle}
           </h2>
           <p className="text-sm sm:text-base opacity-90 max-w-md mx-auto">
-            Book online in less than a minute. Choose your service, pick a date, and reserve your slot.
+            {t.readySubtitle}
           </p>
           <div className="pt-2">
             <Link href="/book">

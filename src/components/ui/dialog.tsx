@@ -38,7 +38,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
       />
 
       {/* Content wrapper */}
-      <div className="relative z-50 w-full max-w-lg rounded-xl border border-border bg-background p-6 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+      <div className="relative z-50 w-full max-w-lg rounded-xl border border-border bg-background p-4 sm:p-6 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
         {children}
       </div>
     </div>

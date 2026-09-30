@@ -85,7 +85,28 @@ export const translations = {
     // Errors
     errorRequiredFields: "Please fill out all required fields.",
     errorConflict: "This time slot is no longer available. Please choose another time.",
+    errorPastBooking: "Cannot book an appointment in the past.",
+    errorServiceUnavailable: "Selected service is not active or available.",
     errorGeneric: "An error occurred while creating your booking. Please try again.",
+
+    // Labels & UI text
+    stepOf: "Step",
+    of: "of",
+    selectedServiceLabel: "Selected Service",
+    changeService: "Change Service",
+    dateLabel: "Date (Europe/Budapest Time)",
+    serviceLabel: "Service",
+    dateTimeLabel: "Date & Time",
+    durationLabel: "Duration",
+    customerLabel: "Customer",
+    priceLabel: "Price",
+    followInstagram: "Follow on Instagram",
+    readyTitle: "Ready for your next cut?",
+    readySubtitle:
+      "Book online in less than a minute. Choose your service, pick a date, and reserve your slot.",
+    timezoneNotice: "Europe/Budapest Timezone",
+    defaultServiceDesc: "Professional precision haircut and beard styling.",
+    adminLogin: "Admin Login",
   },
 
   hu: {
@@ -172,7 +193,28 @@ export const translations = {
     // Errors
     errorRequiredFields: "Kérjük, töltse ki az összes kötelező mezőt.",
     errorConflict: "Ez az időpont már nem elérhető. Kérjük, válasszon másik időpontot.",
+    errorPastBooking: "Múltbéli időpontra nem lehet foglalást leadni.",
+    errorServiceUnavailable: "A kiválasztott szolgáltatás jelenleg nem érhető el.",
     errorGeneric: "Hiba történt a foglalás során. Kérjük, próbálja újra.",
+
+    // Labels & UI text
+    stepOf: "lépés /",
+    of: "/",
+    selectedServiceLabel: "Kiválasztott szolgáltatás",
+    changeService: "Másik szolgáltatás",
+    dateLabel: "Dátum (Európa/Budapest idő)",
+    serviceLabel: "Szolgáltatás",
+    dateTimeLabel: "Dátum & Időpont",
+    durationLabel: "Időtartam",
+    customerLabel: "Vendég",
+    priceLabel: "Ár",
+    followInstagram: "Kövessen Instagramon",
+    readyTitle: "Készen áll a következő hajvágásra?",
+    readySubtitle:
+      "Foglaljon online kevesebb mint egy perc alatt. Válasszon szolgáltatást, dátumot és foglalja le időpontját.",
+    timezoneNotice: "Európa/Budapest időzóna",
+    defaultServiceDesc: "Professzionális precíziós hajvágás és szakállformázás.",
+    adminLogin: "Admin Bejelentkezés",
   },
 } as const;
 
