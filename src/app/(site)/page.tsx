@@ -1,20 +1,49 @@
-import Link from "next/link";
+import {
+  getPublicBusiness,
+  getPublicServices,
+  getPublicPortfolio,
+  getPublicWorkingHours,
+} from "@/lib/public/business";
+import { PublicHome } from "@/components/public/public-home";
 
-import { PagePlaceholder } from "@/components/layout/page-placeholder";
-import { buttonVariants } from "@/components/ui/button";
+export const metadata = {
+  title: "Barbod Barber | Premium Barbershop Budapest",
+  description:
+    "Precision cuts, traditional beard grooming, and craft barbering in Budapest, Hungary. Book your appointment online.",
+  openGraph: {
+    title: "Barbod Barber | Budapest",
+    description:
+      "Precision cuts, traditional beard grooming, and craft barbering in Budapest, Hungary.",
+    type: "website",
+  },
+};
 
-export default function HomePage() {
-  return (
-    <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-4 py-16 sm:px-6 sm:py-24">
-      <PagePlaceholder
-        title="Public website"
-        description="Premium landing page, services, portfolio, and bilingual content will live here. Business-specific branding and content will be loaded from the database in a later phase."
-      />
-      <div className="mt-8">
-        <Link href="/book" className={buttonVariants({ size: "lg" })}>
-          Start booking flow
-        </Link>
+export default async function HomePage() {
+  const business = await getPublicBusiness("barbod-barber");
+
+  if (!business) {
+    return (
+      <div className="mx-auto max-w-lg py-20 text-center">
+        <h1 className="text-2xl font-bold">Barbod Barber</h1>
+        <p className="text-sm text-muted-foreground mt-2">
+          Barbershop business is currently being configured.
+        </p>
       </div>
-    </section>
+    );
+  }
+
+  const [services, portfolio, workingHours] = await Promise.all([
+    getPublicServices(business.id),
+    getPublicPortfolio(business.id),
+    getPublicWorkingHours(business.id),
+  ]);
+
+  return (
+    <PublicHome
+      business={business}
+      services={services}
+      portfolio={portfolio}
+      workingHours={workingHours}
+    />
   );
 }

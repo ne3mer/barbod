@@ -1,16 +1,27 @@
-import { PagePlaceholder } from "@/components/layout/page-placeholder";
+import { getPublicBusiness, getPublicServices } from "@/lib/public/business";
+import { BookingFlow } from "@/components/public/booking-flow";
 
 export const metadata = {
-  title: "Book",
+  title: "Book Appointment | Barbod Barber Budapest",
+  description:
+    "Select your barber service, choose a date and time slot, and confirm your appointment online.",
 };
 
-export default function BookPage() {
-  return (
-    <section className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6">
-      <PagePlaceholder
-        title="Booking"
-        description="Multi-step booking (service, date, available slots, customer details, confirmation) will be implemented after the database schema and availability engine are in place."
-      />
-    </section>
-  );
+export default async function PublicBookingPage() {
+  const business = await getPublicBusiness("barbod-barber");
+
+  if (!business) {
+    return (
+      <div className="mx-auto max-w-lg py-20 text-center">
+        <h1 className="text-2xl font-bold">Barbod Barber</h1>
+        <p className="text-sm text-muted-foreground mt-2">
+          Business is currently not configured.
+        </p>
+      </div>
+    );
+  }
+
+  const services = await getPublicServices(business.id);
+
+  return <BookingFlow business={business} services={services} />;
 }
