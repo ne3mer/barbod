@@ -185,80 +185,125 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
 
   const todayStr = new Date().toISOString().split("T")[0];
 
-  return (
-    <div className="mx-auto max-w-4xl w-full px-4 py-8 sm:px-6 sm:py-12 space-y-8">
-      {/* Step Indicator Header */}
-      {step < 5 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground font-serif">
-              {t.bookingTitle}
-            </h1>
-            <span className="text-xs text-muted-foreground font-medium">
-              {t.stepOf.replace("{step}", String(step))}
-            </span>
-          </div>
+  const stepLabels = [
+    { num: 1, label: lang === "hu" ? "01 SZOLGÁLTATÁS" : "01 SERVICE" },
+    { num: 2, label: lang === "hu" ? "02 DÁTUM ÉS IDŐ" : "02 DATE & TIME" },
+    { num: 3, label: lang === "hu" ? "03 ADATOK" : "03 DETAILS" },
+    { num: 4, label: lang === "hu" ? "04 ÖSSZEGZÉS" : "04 REVIEW" },
+  ];
 
-          {/* Progress bar */}
-          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-300"
-              style={{ width: `${(step / 4) * 100}%` }}
-            />
-          </div>
+  return (
+    <div className="mx-auto max-w-4xl w-full px-4 py-8 sm:px-6 sm:py-16 space-y-10">
+      {/* 1. Minimal Focused Header */}
+      <div className="flex items-center justify-between border-b border-white/10 pb-6">
+        <div className="flex flex-col">
+          <span className="font-serif tracking-[0.2em] uppercase text-lg font-medium text-foreground leading-none">
+            BARBOD
+          </span>
+          <span className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground font-sans mt-1">
+            BARBER ATELIER · {t.bookingTitle}
+          </span>
+        </div>
+
+        <Link
+          href="/"
+          className="text-xs uppercase tracking-widest font-semibold text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5"
+        >
+          <ArrowLeft className="size-3.5" />
+          <span>{lang === "hu" ? "VISSZA A WEBOLDALRA" : "RETURN TO WEBSITE"}</span>
+        </Link>
+      </div>
+
+      {/* 2. Refined Editorial Progress Indicator */}
+      {step < 5 && (
+        <div className="grid grid-cols-4 gap-2 border-b border-white/10 pb-4">
+          {stepLabels.map((s) => {
+            const isActive = step === s.num;
+            const isCompleted = step > s.num;
+
+            return (
+              <div
+                key={s.num}
+                className={`text-center py-2 transition-all ${
+                  isActive
+                    ? "border-b-2 border-primary text-primary font-bold"
+                    : isCompleted
+                    ? "text-foreground/80 font-medium"
+                    : "text-muted-foreground/40 font-normal"
+                }`}
+              >
+                <span className="text-[11px] sm:text-xs tracking-wider uppercase font-mono block">
+                  {s.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Error Alert */}
+      {/* Error Alert Banner */}
       {errorMsg && (
-        <div className="flex items-center gap-2 rounded-xl bg-destructive/15 p-4 text-sm text-destructive border border-destructive/30 animate-in fade-in">
-          <AlertCircle className="size-5 shrink-0" />
+        <div className="flex items-center gap-3 rounded-sm bg-destructive/15 p-4 text-xs font-medium text-destructive border border-destructive/30 animate-in fade-in">
+          <AlertCircle className="size-4 shrink-0 text-destructive" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* STEP 1: SELECT SERVICE */}
       {step === 1 && (
-        <div className="space-y-6">
-          <h2 className="text-xl font-bold text-foreground font-serif">
-            {t.step1Title}
-          </h2>
+        <div className="space-y-8">
+          <div className="space-y-1">
+            <span className="eyebrow">{lang === "hu" ? "1. LÉPÉS" : "STEP 01"}</span>
+            <h2 className="text-3xl font-normal text-foreground font-serif">
+              {t.step1Title}
+            </h2>
+          </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {services.map((svc) => {
+          <div className="divide-y divide-white/10 border-t border-b border-white/10">
+            {services.map((svc, idx) => {
               const name = getLocalizedField(svc, "name", lang);
               const desc = getLocalizedField(svc, "description", lang);
               const isSelected = selectedService?.id === svc.id;
+              const priceFormatted = new Intl.NumberFormat(
+                lang === "hu" ? "hu-HU" : "en-US"
+              ).format(svc.price);
+              const indexStr = String(idx + 1).padStart(2, "0");
 
               return (
                 <div
                   key={svc.id}
                   onClick={() => handleSelectService(svc)}
-                  className={`flex flex-col justify-between rounded-xl border p-5 cursor-pointer transition-all ${
+                  className={`group flex flex-col md:flex-row md:items-center justify-between gap-6 py-6 px-4 cursor-pointer transition-all duration-200 ${
                     isSelected
-                      ? "border-primary bg-primary/5 shadow-md"
-                      : "border-border bg-card hover:border-primary/50 hover:shadow-xs"
+                      ? "bg-primary/10 border-l-2 border-primary"
+                      : "hover:bg-white/[0.02]"
                   }`}
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between">
-                      <h3 className="font-bold text-base text-foreground">
+                  <div className="flex items-start gap-6">
+                    <span className="font-mono text-sm font-semibold text-primary/70 pt-1 shrink-0">
+                      {indexStr}
+                    </span>
+
+                    <div className="space-y-1 max-w-lg">
+                      <h3 className="text-xl font-normal text-foreground font-serif group-hover:text-primary transition-colors">
                         {name}
                       </h3>
-                      <span className="font-bold text-primary text-sm">
-                        {svc.price} {svc.currency}
-                      </span>
+                      <p className="text-xs text-muted-foreground leading-relaxed font-light">
+                        {desc || t.defaultServiceDesc}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {desc || t.defaultServiceDesc}
-                    </p>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Clock className="size-3.5" />
-                      {svc.duration_minutes} {t.duration}
-                    </span>
+                  <div className="flex items-center justify-between md:justify-end gap-6 pt-2 md:pt-0">
+                    <div className="text-left md:text-right">
+                      <div className="text-xs font-mono text-muted-foreground">
+                        {svc.duration_minutes} {t.duration}
+                      </div>
+                      <div className="text-base font-sans font-bold text-primary mt-0.5">
+                        {priceFormatted} {svc.currency}
+                      </div>
+                    </div>
+
                     <Button size="xs" variant={isSelected ? "default" : "outline"}>
                       {t.nextStep}
                     </Button>
@@ -273,12 +318,11 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
       {/* STEP 2: SELECT DATE & TIME SLOT */}
       {step === 2 && (
         <div className="space-y-8">
-          <div className="flex items-center justify-between border-b pb-4">
+          {/* Selected Service Bar */}
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div>
-              <span className="text-xs text-muted-foreground uppercase font-semibold">
-                {t.selectedServiceLabel}
-              </span>
-              <h3 className="text-lg font-bold text-foreground">
+              <span className="eyebrow">{t.selectedServiceLabel}</span>
+              <h3 className="text-xl font-normal text-foreground font-serif mt-0.5">
                 {selectedService && getLocalizedField(selectedService, "name", lang)}
               </h3>
             </div>
@@ -286,22 +330,22 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
               variant="ghost"
               size="xs"
               onClick={() => setStep(1)}
-              className="gap-1 text-xs"
+              className="gap-1.5 text-xs text-muted-foreground hover:text-primary"
             >
               <ArrowLeft className="size-3.5" />
               <span>{t.changeService}</span>
             </Button>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid gap-10 lg:grid-cols-2">
             {/* Date Selector */}
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-foreground font-serif">
+              <h2 className="text-2xl font-normal text-foreground font-serif">
                 {t.step2Title}
               </h2>
 
               <div className="space-y-2">
-                <Label htmlFor="date_picker" className="text-xs">
+                <Label htmlFor="date_picker" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t.dateLabel}
                 </Label>
                 <Input
@@ -310,32 +354,32 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
                   min={todayStr}
                   value={selectedDate}
                   onChange={handleDateChange}
-                  className="w-full text-sm py-2"
+                  className="w-full text-sm font-mono h-12 bg-card/90 border-white/10"
                 />
               </div>
             </div>
 
             {/* Time Slot Picker */}
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-foreground font-serif">
+              <h2 className="text-2xl font-normal text-foreground font-serif">
                 {t.step3Title}
               </h2>
 
               {loadingSlots ? (
-                <div className="flex items-center justify-center p-8 border border-dashed rounded-xl bg-card">
-                  <Loader2 className="size-6 animate-spin text-primary mr-2" />
-                  <span className="text-xs text-muted-foreground">
+                <div className="flex items-center justify-center p-12 border border-white/10 rounded-sm bg-card/60">
+                  <Loader2 className="size-5 animate-spin text-primary mr-2" />
+                  <span className="text-xs text-muted-foreground font-mono">
                     {t.loadingSlots}
                   </span>
                 </div>
               ) : availableSlots.length === 0 ? (
-                <div className="p-8 border border-dashed border-border rounded-xl text-center bg-card">
-                  <p className="text-xs text-muted-foreground">
+                <div className="p-12 border border-dashed border-white/10 rounded-sm text-center bg-card/40">
+                  <p className="text-xs text-muted-foreground font-light">
                     {t.noSlotsAvailable}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-3 gap-2.5 max-h-[320px] overflow-y-auto pr-1">
                   {availableSlots.map((slot) => {
                     const isSelected = selectedSlot?.timeStr === slot.timeStr;
                     return (
@@ -343,10 +387,10 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
                         key={slot.timeStr}
                         type="button"
                         onClick={() => handleSelectSlot(slot)}
-                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-all ${
+                        className={`rounded-sm border px-3 py-3 text-xs font-mono font-semibold transition-all ${
                           isSelected
                             ? "border-primary bg-primary text-primary-foreground shadow-xs"
-                            : "border-border bg-card text-foreground hover:border-primary/60 hover:bg-muted/40"
+                            : "border-white/10 bg-card text-foreground hover:border-primary/60 hover:bg-white/[0.04]"
                         }`}
                       >
                         {slot.formattedTime}
@@ -358,8 +402,8 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             </div>
           </div>
 
-          <div className="flex justify-between pt-6 border-t border-border">
-            <Button variant="outline" onClick={() => setStep(1)} className="gap-1.5">
+          <div className="flex justify-between pt-6 border-t border-white/10">
+            <Button variant="outline" onClick={() => setStep(1)} className="gap-2">
               <ArrowLeft className="size-4" />
               <span>{t.prevStep}</span>
             </Button>
@@ -367,7 +411,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             <Button
               onClick={() => setStep(3)}
               disabled={!selectedSlot}
-              className="gap-1.5 px-6"
+              className="gap-2 px-8"
             >
               <span>{t.nextStep}</span>
               <ArrowRight className="size-4" />
@@ -378,69 +422,84 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
 
       {/* STEP 3: CUSTOMER DETAILS */}
       {step === 3 && (
-        <form onSubmit={handleDetailsNext} className="space-y-6">
-          <h2 className="text-xl font-bold text-foreground font-serif">
-            {t.step4Title}
-          </h2>
+        <form onSubmit={handleDetailsNext} className="space-y-8">
+          <div className="space-y-1">
+            <span className="eyebrow">{lang === "hu" ? "3. LÉPÉS" : "STEP 03"}</span>
+            <h2 className="text-2xl font-normal text-foreground font-serif">
+              {t.step4Title}
+            </h2>
+          </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="cust_name">{t.fullName} *</Label>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="cust_name" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+                {t.fullName} *
+              </Label>
               <Input
                 id="cust_name"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder={t.fullNamePlaceholder}
+                className="h-12 bg-card/90 border-white/10"
                 required
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="cust_phone">{t.phoneNumber} *</Label>
+            <div className="space-y-2">
+              <Label htmlFor="cust_phone" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+                {t.phoneNumber} *
+              </Label>
               <Input
                 id="cust_phone"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 placeholder={t.phonePlaceholder}
+                className="h-12 bg-card/90 border-white/10"
                 required
               />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="cust_email">{t.emailAddress}</Label>
+          <div className="space-y-2">
+            <Label htmlFor="cust_email" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+              {t.emailAddress}
+            </Label>
             <Input
               id="cust_email"
               type="email"
               value={customerEmail}
               onChange={(e) => setCustomerEmail(e.target.value)}
               placeholder={t.emailPlaceholder}
+              className="h-12 bg-card/90 border-white/10"
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="cust_notes">{t.notesLabel}</Label>
+          <div className="space-y-2">
+            <Label htmlFor="cust_notes" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+              {t.notesLabel}
+            </Label>
             <Textarea
               id="cust_notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={t.notesPlaceholder}
+              className="bg-card/90 border-white/10 rounded-sm focus:border-primary p-3"
               rows={3}
             />
           </div>
 
-          <div className="flex justify-between pt-6 border-t border-border">
+          <div className="flex justify-between pt-6 border-t border-white/10">
             <Button
               type="button"
               variant="outline"
               onClick={() => setStep(2)}
-              className="gap-1.5"
+              className="gap-2"
             >
               <ArrowLeft className="size-4" />
               <span>{t.prevStep}</span>
             </Button>
 
-            <Button type="submit" className="gap-1.5 px-6">
+            <Button type="submit" className="gap-2 px-8">
               <span>{t.nextStep}</span>
               <ArrowRight className="size-4" />
             </Button>
@@ -450,62 +509,56 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
 
       {/* STEP 4: REVIEW & CONFIRM */}
       {step === 4 && selectedService && selectedSlot && (
-        <div className="space-y-6">
-          <h2 className="text-xl font-bold text-foreground font-serif">
-            {t.step5Title}
-          </h2>
+        <div className="space-y-8">
+          <div className="space-y-1">
+            <span className="eyebrow">{lang === "hu" ? "4. LÉPÉS" : "STEP 04"}</span>
+            <h2 className="text-2xl font-normal text-foreground font-serif">
+              {t.step5Title}
+            </h2>
+          </div>
 
-          <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-xs">
-            <div className="border-b pb-4 flex items-center justify-between">
+          {/* Ticket-Style Summary Receipt */}
+          <div className="rounded-sm border border-white/10 bg-card p-6 sm:p-8 space-y-6 shadow-xl">
+            <div className="border-b border-white/10 pb-5 flex items-center justify-between">
               <div>
-                <span className="text-xs text-muted-foreground uppercase font-semibold">
-                  {t.serviceLabel}
-                </span>
-                <h3 className="text-lg font-bold text-foreground">
+                <span className="eyebrow">{t.serviceLabel}</span>
+                <h3 className="text-2xl font-normal text-foreground font-serif mt-0.5">
                   {getLocalizedField(selectedService, "name", lang)}
                 </h3>
               </div>
-              <span className="text-lg font-bold text-primary">
+              <span className="text-xl font-bold font-sans text-primary">
                 {selectedService.price} {selectedService.currency}
               </span>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 text-sm">
+            <div className="grid gap-6 sm:grid-cols-2 text-sm">
               <div>
-                <span className="text-xs text-muted-foreground block">
-                  {t.dateTimeLabel}
-                </span>
-                <span className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+                <span className="eyebrow block mb-1">{t.dateTimeLabel}</span>
+                <span className="font-semibold font-mono text-foreground flex items-center gap-2 text-base">
                   <CalendarIcon className="size-4 text-primary" />
                   {selectedDate} {selectedSlot.formattedTime}
                 </span>
               </div>
 
               <div>
-                <span className="text-xs text-muted-foreground block">
-                  {t.durationLabel}
-                </span>
-                <span className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+                <span className="eyebrow block mb-1">{t.durationLabel}</span>
+                <span className="font-semibold font-mono text-foreground flex items-center gap-2 text-base">
                   <Clock className="size-4 text-primary" />
                   {selectedService.duration_minutes} {t.duration}
                 </span>
               </div>
 
               <div>
-                <span className="text-xs text-muted-foreground block">
-                  {t.fullName}
-                </span>
-                <span className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+                <span className="eyebrow block mb-1">{t.fullName}</span>
+                <span className="font-medium text-foreground flex items-center gap-2">
                   <User className="size-4 text-primary" />
                   {customerName}
                 </span>
               </div>
 
               <div>
-                <span className="text-xs text-muted-foreground block">
-                  {t.phoneNumber}
-                </span>
-                <span className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+                <span className="eyebrow block mb-1">{t.phoneNumber}</span>
+                <span className="font-medium text-foreground flex items-center gap-2">
                   <Phone className="size-4 text-primary" />
                   {customerPhone}
                 </span>
@@ -513,21 +566,21 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             </div>
 
             {notes && (
-              <div className="border-t pt-3 text-xs">
-                <span className="text-muted-foreground block font-medium">{t.notesLabel}</span>
-                <p className="mt-1 text-foreground bg-muted/40 p-2.5 rounded-lg">
+              <div className="border-t border-white/10 pt-4 text-xs">
+                <span className="eyebrow block mb-1">{t.notesLabel}</span>
+                <p className="mt-1 text-foreground bg-white/[0.03] p-3 rounded-sm border border-white/5 font-light">
                   {notes}
                 </p>
               </div>
             )}
           </div>
 
-          <div className="flex justify-between pt-6 border-t border-border">
+          <div className="flex justify-between pt-6 border-t border-white/10">
             <Button
               type="button"
               variant="outline"
               onClick={() => setStep(3)}
-              className="gap-1.5"
+              className="gap-2"
             >
               <ArrowLeft className="size-4" />
               <span>{t.prevStep}</span>
@@ -536,7 +589,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
             <Button
               onClick={handleConfirmSubmit}
               disabled={submitting}
-              className="gap-2 px-8 text-base shadow-sm"
+              className="gap-2.5 px-10 text-sm uppercase tracking-wider font-semibold shadow-md"
             >
               {submitting ? (
                 <>
@@ -556,28 +609,28 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
 
       {/* STEP 5: SUCCESS SCREEN */}
       {step === 5 && confirmedBooking && (
-        <div className="py-8 space-y-8 text-center max-w-xl mx-auto">
-          <div className="flex flex-col items-center justify-center space-y-3">
-            <div className="rounded-full bg-emerald-500/15 p-4 text-emerald-600 dark:text-emerald-400">
+        <div className="py-12 space-y-8 text-center max-w-xl mx-auto">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="rounded-full bg-emerald-500/10 p-5 text-emerald-500 border border-emerald-500/20">
               <CheckCircle2 className="size-12" />
             </div>
             <Badge variant="warning">{t.statusBadgePending}</Badge>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground font-serif">
+            <h1 className="text-3xl sm:text-4xl font-normal text-foreground font-serif">
               {t.successHeadline}
             </h1>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-md font-light">
               {t.successMessage}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-6 text-left space-y-3 shadow-xs">
-            <h3 className="text-xs uppercase font-bold tracking-wider text-muted-foreground border-b pb-2">
+          <div className="rounded-sm border border-white/10 bg-card p-6 text-left space-y-4 shadow-xl">
+            <h3 className="eyebrow border-b border-white/10 pb-3">
               {t.bookingDetails}
             </h3>
 
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t.serviceLabel}:</span>
-              <span className="font-semibold text-foreground">
+              <span className="font-serif font-medium text-foreground">
                 {lang === "hu"
                   ? confirmedBooking.serviceNameHu || confirmedBooking.serviceNameEn
                   : confirmedBooking.serviceNameEn}
@@ -586,29 +639,29 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
 
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t.dateTimeLabel}:</span>
-              <span className="font-semibold text-foreground">
+              <span className="font-mono font-semibold text-primary">
                 {confirmedBooking.dateStr} {confirmedBooking.startTimeStr}
               </span>
             </div>
 
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t.customerLabel}:</span>
-              <span className="font-semibold text-foreground">
+              <span className="font-medium text-foreground">
                 {confirmedBooking.customerName}
               </span>
             </div>
 
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t.priceLabel}:</span>
-              <span className="font-bold text-primary">
+              <span className="font-bold text-primary font-sans">
                 {confirmedBooking.price} {confirmedBooking.currency}
               </span>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
-            <Link href="/">
-              <Button variant="outline" className="w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <Link href="/" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto uppercase tracking-wider text-xs">
                 {t.backToHome}
               </Button>
             </Link>
@@ -623,7 +676,7 @@ export function BookingFlow({ business, services }: BookingFlowProps) {
                 setNotes("");
                 setStep(1);
               }}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto uppercase tracking-wider text-xs font-semibold"
             >
               {t.bookAnother}
             </Button>
