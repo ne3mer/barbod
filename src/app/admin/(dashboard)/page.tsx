@@ -1,20 +1,24 @@
+import Link from "next/link";
+import {
+  Calendar,
+  Clock,
+  Scissors,
+  Image as ImageIcon,
+  Plus,
+  ArrowRight,
+  User,
+  Phone,
+} from "lucide-react";
+
 import { BUSINESS_TIMEZONE } from "@/types";
-import type { AdminBusiness } from "@/lib/auth/session";
 import { getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { utcToBudapestParts } from "@/lib/utils/dates";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata = {
-  title: "Admin",
+  title: "Dashboard | Barbod Admin",
 };
-
-const PLACEHOLDER_SECTIONS = [
-  "Calendar",
-  "Appointments",
-  "Services",
-  "Working Hours",
-  "Portfolio",
-  "Settings",
-] as const;
 
 function budapestDayKey(date: Date) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -25,48 +29,73 @@ function budapestDayKey(date: Date) {
   }).format(date);
 }
 
-async function getAppointmentOverview(businessId: string) {
+async function getDashboardMetrics(businessId: string) {
   const supabase = await createClient();
   const now = new Date();
 
-  const { data, error } = await supabase
+  // 1. Appointments query
+  const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, start_at, status")
+    .select("*, services(name_en, duration_minutes)")
     .eq("business_id", businessId)
-    .in("status", ["pending", "confirmed"])
-    .gte("start_at", new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString())
-    .order("start_at", { ascending: true })
-    .limit(100);
-
-  if (error) {
-    console.error("Failed to load appointment overview", error.message);
-    return { todayCount: 0, upcomingCount: 0 };
-  }
+    .order("start_at", { ascending: true });
 
   const todayKey = budapestDayKey(now);
   let todayCount = 0;
   let upcomingCount = 0;
+  let pendingCount = 0;
 
-  for (const row of data ?? []) {
+  const upcomingList: typeof appointments = [];
+
+  for (const row of appointments ?? []) {
     const start = new Date(row.start_at);
-    if (budapestDayKey(start) === todayKey) {
+
+    if (row.status === "pending") {
+      pendingCount += 1;
+    }
+
+    if (budapestDayKey(start) === todayKey && row.status !== "cancelled") {
       todayCount += 1;
     }
-    if (start.getTime() >= now.getTime()) {
+
+    if (start.getTime() >= now.getTime() && row.status !== "cancelled") {
       upcomingCount += 1;
+      if (upcomingList.length < 5) {
+        upcomingList.push(row);
+      }
     }
   }
 
-  return { todayCount, upcomingCount };
+  // 2. Services count
+  const { count: activeServicesCount } = await supabase
+    .from("services")
+    .select("*", { count: "exact", head: true })
+    .eq("business_id", businessId)
+    .eq("is_active", true);
+
+  // 3. Portfolio count
+  const { count: portfolioCount } = await supabase
+    .from("portfolio_items")
+    .select("*", { count: "exact", head: true })
+    .eq("business_id", businessId);
+
+  return {
+    todayCount,
+    upcomingCount,
+    pendingCount,
+    activeServicesCount: activeServicesCount ?? 0,
+    portfolioCount: portfolioCount ?? 0,
+    upcomingList,
+  };
 }
 
 function NoBusinessState() {
   return (
     <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
-      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Setup required
       </p>
-      <h1 className="text-2xl font-medium tracking-tight">
+      <h1 className="text-2xl font-bold tracking-tight">
         No business configured
       </h1>
       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -74,82 +103,6 @@ function NoBusinessState() {
         administrator to attach a business to this owner, or run the project
         seed for your profile.
       </p>
-    </div>
-  );
-}
-
-function DashboardOverview({
-  business,
-  todayCount,
-  upcomingCount,
-}: {
-  business: AdminBusiness;
-  todayCount: number;
-  upcomingCount: number;
-}) {
-  const statusBits = [
-    business.phone ? "Phone on file" : "Phone missing",
-    business.email ? "Email on file" : "Email missing",
-    business.address ? "Address on file" : "Address missing",
-  ];
-
-  return (
-    <div className="space-y-10">
-      <div className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-          Dashboard
-        </p>
-        <h1 className="text-3xl font-medium tracking-tight">{business.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          slug <span className="font-mono text-foreground">{business.slug}</span>
-        </p>
-      </div>
-
-      <section className="grid gap-4 sm:grid-cols-3">
-        <OverviewStat label="Today’s appointments" value={String(todayCount)} />
-        <OverviewStat
-          label="Upcoming appointments"
-          value={String(upcomingCount)}
-        />
-        <div className="border border-border/70 bg-background px-4 py-5">
-          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-            Business status
-          </p>
-          <p className="mt-3 text-sm leading-relaxed text-foreground">
-            Active · {statusBits.join(" · ")}
-          </p>
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Quick actions</h2>
-        <p className="text-sm text-muted-foreground">
-          Management tools will be connected in the next phase. These sections
-          are placeholders only.
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {PLACEHOLDER_SECTIONS.map((section) => (
-            <div
-              key={section}
-              className="border border-dashed border-border/80 px-4 py-4 text-sm text-muted-foreground"
-            >
-              {section}
-              <span className="mt-1 block text-xs">Coming soon</span>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function OverviewStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border border-border/70 bg-background px-4 py-5">
-      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-3 text-3xl font-medium tracking-tight">{value}</p>
     </div>
   );
 }
@@ -162,13 +115,225 @@ export default async function AdminDashboardPage() {
     return <NoBusinessState />;
   }
 
-  const overview = await getAppointmentOverview(business.id);
+  const metrics = await getDashboardMetrics(business.id);
 
   return (
-    <DashboardOverview
-      business={business}
-      todayCount={overview.todayCount}
-      upcomingCount={overview.upcomingCount}
-    />
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Overview
+          </span>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {business.name}
+          </h1>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Budapest Timezone · <span className="font-mono">{BUSINESS_TIMEZONE}</span>
+        </div>
+      </div>
+
+      {/* Metrics Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Today’s Bookings
+            </span>
+            <Calendar className="size-4 text-primary" />
+          </div>
+          <p className="mt-2 text-3xl font-bold tracking-tight">{metrics.todayCount}</p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Upcoming
+            </span>
+            <Clock className="size-4 text-sky-500" />
+          </div>
+          <p className="mt-2 text-3xl font-bold tracking-tight">{metrics.upcomingCount}</p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Pending Approval
+            </span>
+            <Badge variant={metrics.pendingCount > 0 ? "warning" : "outline"}>
+              {metrics.pendingCount}
+            </Badge>
+          </div>
+          <p className="mt-2 text-3xl font-bold tracking-tight">{metrics.pendingCount}</p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Active Services
+            </span>
+            <Scissors className="size-4 text-emerald-500" />
+          </div>
+          <p className="mt-2 text-3xl font-bold tracking-tight">
+            {metrics.activeServicesCount}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Portfolio Photos
+            </span>
+            <ImageIcon className="size-4 text-amber-500" />
+          </div>
+          <p className="mt-2 text-3xl font-bold tracking-tight">{metrics.portfolioCount}</p>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-foreground">Quick Actions</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Link
+            href="/admin/appointments?action=new"
+            className="flex items-center justify-between rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-muted/30 transition-all shadow-xs group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-primary/10 p-2.5 text-primary">
+                <Plus className="size-4" />
+              </div>
+              <span className="text-sm font-semibold text-foreground">
+                New Appointment
+              </span>
+            </div>
+            <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+
+          <Link
+            href="/admin/services?action=new"
+            className="flex items-center justify-between rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-muted/30 transition-all shadow-xs group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-emerald-500/10 p-2.5 text-emerald-600 dark:text-emerald-400">
+                <Scissors className="size-4" />
+              </div>
+              <span className="text-sm font-semibold text-foreground">Add Service</span>
+            </div>
+            <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+
+          <Link
+            href="/admin/working-hours"
+            className="flex items-center justify-between rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-muted/30 transition-all shadow-xs group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-sky-500/10 p-2.5 text-sky-600 dark:text-sky-400">
+                <Clock className="size-4" />
+              </div>
+              <span className="text-sm font-semibold text-foreground">Manage Hours</span>
+            </div>
+            <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+
+          <Link
+            href="/admin/portfolio?action=new"
+            className="flex items-center justify-between rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-muted/30 transition-all shadow-xs group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-amber-500/10 p-2.5 text-amber-600 dark:text-amber-400">
+                <ImageIcon className="size-4" />
+              </div>
+              <span className="text-sm font-semibold text-foreground">
+                Upload Portfolio
+              </span>
+            </div>
+            <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Upcoming Appointments Section */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-foreground">
+            Upcoming Appointments
+          </h2>
+          <Link
+            href="/admin/appointments"
+            className="text-xs text-primary hover:underline font-medium flex items-center gap-1"
+          >
+            <span>View all</span>
+            <ArrowRight className="size-3" />
+          </Link>
+        </div>
+
+        {metrics.upcomingList.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-8 text-center bg-card">
+            <p className="text-sm text-muted-foreground">
+              No upcoming appointments scheduled.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/60 rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+            {metrics.upcomingList.map((app) => {
+              const startParts = utcToBudapestParts(app.start_at);
+              const endParts = utcToBudapestParts(app.end_at);
+              const svc = app.services as { name_en?: string } | null;
+
+              return (
+                <div
+                  key={app.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-3 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-full bg-primary/10 p-2 text-primary mt-0.5 shrink-0">
+                      <User className="size-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-foreground">
+                          {app.customer_name}
+                        </span>
+                        <Badge
+                          variant={
+                            app.status === "pending"
+                              ? "warning"
+                              : app.status === "confirmed"
+                              ? "info"
+                              : "secondary"
+                          }
+                        >
+                          {app.status}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
+                        <span className="flex items-center gap-1">
+                          <Phone className="size-3" />
+                          {app.customer_phone}
+                        </span>
+                        <span>·</span>
+                        <span className="font-medium text-foreground">
+                          {svc?.name_en || "Service"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right text-xs shrink-0 self-end sm:self-center">
+                    <span className="font-semibold text-foreground block">
+                      {startParts.formattedDate}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {startParts.timeStr} – {endParts.timeStr}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
