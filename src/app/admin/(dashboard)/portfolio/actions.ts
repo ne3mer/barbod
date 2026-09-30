@@ -180,17 +180,13 @@ export async function deletePortfolioItemAction(id: string, imagePath: string) {
   return { success: true };
 }
 
-  return { success: true };
-}
-
 export async function reorderPortfolioAction(orderedIds: string[]) {
-  const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
-
-  if (!business) {
-    return { error: "No business linked to account." };
+  const context = await getAdminContext();
+  if (!context) {
+    return { error: "Unauthorized." };
   }
 
+  const business = context.business;
   const supabase = await createClient();
 
   const updates = orderedIds.map((id, index) =>
@@ -206,3 +202,4 @@ export async function reorderPortfolioAction(orderedIds: string[]) {
   revalidatePath("/admin/portfolio");
   return { success: true };
 }
+

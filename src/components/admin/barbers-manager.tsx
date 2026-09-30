@@ -50,6 +50,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
 
   // Form State
   const [name, setName] = React.useState("");
+  const [userId, setUserId] = React.useState("");
   const [profilePhotoUrl, setProfilePhotoUrl] = React.useState("");
   const [bioEn, setBioEn] = React.useState("");
   const [bioHu, setBioHu] = React.useState("");
@@ -66,6 +67,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
   const handleOpenAdd = () => {
     setEditingBarber(null);
     setName("");
+    setUserId("");
     setProfilePhotoUrl("");
     setBioEn("");
     setBioHu("");
@@ -81,6 +83,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
   const handleOpenEdit = (barber: BarberWithServices) => {
     setEditingBarber(barber);
     setName(barber.name);
+    setUserId(barber.user_id || "");
     setProfilePhotoUrl(barber.profile_photo_url || "");
     setBioEn(barber.bio_en || "");
     setBioHu(barber.bio_hu || "");
@@ -92,6 +95,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
     setErrorMsg(null);
     setIsOpen(true);
   };
+
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,6 +174,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
 
     const payload = {
       name,
+      user_id: userId.trim() || null,
       profile_photo_url: profilePhotoUrl,
       bio_en: bioEn,
       bio_hu: bioHu,
@@ -177,6 +182,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
       is_active: isActive,
       serviceIds: selectedServiceIds,
     };
+
 
     if (editingBarber) {
       const res = await updateBarberAction(editingBarber.id, payload);
@@ -288,9 +294,15 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                     </div>
                   </div>
 
-                  <Badge variant={barber.is_active ? "success" : "secondary"}>
-                    {barber.is_active ? "Active" : "Inactive"}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant={barber.is_active ? "success" : "secondary"}>
+                      {barber.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                    <Badge variant={barber.user_id ? "info" : "outline"} className="text-[10px]">
+                      {barber.user_id ? "Linked Login" : "Unlinked Staff"}
+                    </Badge>
+                  </div>
+
                 </CardHeader>
 
                 <CardContent className="space-y-4 pt-0">
@@ -387,6 +399,23 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                   required
                 />
               </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="b_user_id" className="text-xs uppercase tracking-wider font-semibold">
+                  Linked Auth User ID (Optional)
+                </Label>
+                <Input
+                  id="b_user_id"
+                  value={userId}
+                  onChange={(e) => setUserId(e.target.value)}
+                  placeholder="Supabase Auth User ID (e.g. 58708539-...)"
+                  className="font-mono text-xs"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Linking a Supabase Auth user ID enables independent staff login for this barber.
+                </p>
+              </div>
+
 
               {/* PROFILE PHOTO UPLOAD WIDGET */}
               <div className="space-y-2 border-t border-border pt-4">

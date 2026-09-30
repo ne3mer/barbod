@@ -28,7 +28,14 @@ type AdminShellProps = {
   barberName?: string | null;
 };
 
-const OWNER_NAV_ITEMS = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  exact?: boolean;
+};
+
+const OWNER_NAV_ITEMS: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/appointments", label: "Schedule", icon: Calendar },
   { href: "/admin/barbers", label: "Barbers", icon: Users },
@@ -39,13 +46,14 @@ const OWNER_NAV_ITEMS = [
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
-const STAFF_NAV_ITEMS = [
+const STAFF_NAV_ITEMS: NavItem[] = [
   { href: "/admin/appointments", label: "My Schedule", icon: Calendar },
   { href: "/admin/working-hours", label: "My Working Hours", icon: Clock },
   { href: "/admin/blocked-times", label: "My Blocked Times", icon: Ban },
   { href: "/admin/profile", label: "My Profile", icon: UserCheck },
   { href: "/admin/portfolio", label: "My Portfolio", icon: ImageIcon },
 ];
+
 
 export function AdminShell({
   children,

@@ -43,7 +43,9 @@ export function BlockedTimesManager({
   initialItems,
 }: {
   initialItems: BlockedTimeRow[];
+  barbers?: Tables<"barbers">[];
 }) {
+
   const [items] = React.useState<BlockedTimeRow[]>(initialItems);
 
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);

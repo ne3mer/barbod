@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminContext } from "@/lib/auth/session";
+import type { TablesUpdate } from "@/types/database";
+
 
 export type BarberInput = {
   name: string;
@@ -113,7 +115,8 @@ export async function updateBarberAction(id: string, input: BarberInput) {
   }
 
   // 1. Update Barber row
-  const updateData: Record<string, unknown> = {
+  const updateData: TablesUpdate<"barbers"> = {
+
     name: input.name.trim(),
     profile_photo_url: input.profile_photo_url?.trim() || null,
     bio_en: input.bio_en?.trim() || null,
@@ -125,6 +128,7 @@ export async function updateBarberAction(id: string, input: BarberInput) {
   if (input.user_id !== undefined) {
     updateData.user_id = input.user_id || null;
   }
+
 
   const { error } = await supabase
     .from("barbers")
@@ -392,15 +396,6 @@ export async function deleteBarberProfilePhotoAction(barberId: string) {
   revalidatePath("/admin/barbers");
   revalidatePath("/admin/profile");
   revalidatePath("/");
-
-  return { success: true };
-}
-
-
-  revalidatePath("/admin/barbers");
-  revalidatePath("/admin/appointments");
-  revalidatePath("/");
-  revalidatePath("/book");
 
   return { success: true };
 }
