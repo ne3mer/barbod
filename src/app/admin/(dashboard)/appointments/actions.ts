@@ -228,6 +228,36 @@ export async function rescheduleAppointmentAction(
   const startIso = startUtc.toISOString();
   const endIso = endUtc.toISOString();
 
+  // Check working hours
+  const startParts = utcToBudapestParts(startUtc);
+  const endParts = utcToBudapestParts(endUtc);
+
+  const { data: workingHours } = await supabase
+    .from("working_hours")
+    .select("*")
+    .eq("business_id", business.id)
+    .eq("day_of_week", startParts.dayOfWeek)
+    .eq("is_active", true);
+
+  if (!workingHours || workingHours.length === 0) {
+    return { error: "The business is closed on this day according to working hours." };
+  }
+
+  const appStartMins = timeStringToMinutes(startParts.timeStr);
+  const appEndMins = timeStringToMinutes(endParts.timeStr);
+
+  const fitsInSchedule = workingHours.some((wh) => {
+    const whStartMins = timeStringToMinutes(wh.start_time);
+    const whEndMins = timeStringToMinutes(wh.end_time);
+    return appStartMins >= whStartMins && appEndMins <= whEndMins;
+  });
+
+  if (!fitsInSchedule) {
+    return {
+      error: "Appointment duration falls outside configured working hours for this day.",
+    };
+  }
+
   // Overlap checks (exclude current appointment)
   const { data: appOverlaps } = await supabase
     .from("appointments")
@@ -267,6 +297,9 @@ export async function rescheduleAppointmentAction(
 
   if (updateErr) {
     console.error("Failed to reschedule", updateErr.message);
+    if (updateErr.message.includes("appointments_no_overlap")) {
+      return { error: "This time slot is already booked for another appointment." };
+    }
     return { error: updateErr.message };
   }
 

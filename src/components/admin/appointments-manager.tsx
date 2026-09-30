@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Calendar as CalendarIcon,
@@ -59,8 +60,16 @@ export function AppointmentsManager({
   services,
   initialNewModalOpen = false,
 }: AppointmentsManagerProps) {
+  const router = useRouter();
   const [appointments, setAppointments] =
     React.useState<AppointmentRow[]>(initialAppointments);
+  const [prevInitial, setPrevInitial] =
+    React.useState<AppointmentRow[]>(initialAppointments);
+
+  if (prevInitial !== initialAppointments) {
+    setPrevInitial(initialAppointments);
+    setAppointments(initialAppointments);
+  }
 
   // Filters
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
@@ -142,6 +151,7 @@ export function AppointmentsManager({
     } else {
       setIsCreateOpen(false);
       resetCreateForm();
+      router.refresh();
     }
   };
 
@@ -161,6 +171,8 @@ export function AppointmentsManager({
     if (res.error) {
       // Revert
       setAppointments(initialAppointments);
+    } else {
+      router.refresh();
     }
   };
 
@@ -193,6 +205,7 @@ export function AppointmentsManager({
       setErrorMsg(res.error);
     } else {
       setRescheduleApp(null);
+      router.refresh();
     }
   };
 
@@ -206,6 +219,7 @@ export function AppointmentsManager({
       setErrorMsg(res.error);
     } else {
       setDeleteTarget(null);
+      router.refresh();
     }
   };
 
