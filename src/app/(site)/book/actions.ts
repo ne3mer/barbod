@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getPublicBusiness } from "@/lib/public/business";
 import {
   calculateAvailableSlots,
@@ -153,7 +154,10 @@ export async function createPublicBookingAction(data: PublicBookingInput) {
   }
 
   // 6. Insert public appointment with status = 'pending'
-  const { data: inserted, error: insertError } = await supabase
+  const adminSupabase = createAdminClient();
+  const dbForInsert = adminSupabase || supabase;
+
+  const { data: inserted, error: insertError } = await dbForInsert
     .from("appointments")
     .insert({
       business_id: business.id,
