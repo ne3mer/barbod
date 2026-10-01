@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Users,
   UserCheck,
+  Mail,
 } from "lucide-react";
 
 import { signOutAction } from "@/app/admin/(dashboard)/actions";
@@ -43,8 +44,10 @@ const OWNER_NAV_ITEMS: NavItem[] = [
   { href: "/admin/working-hours", label: "Working Hours", icon: Clock },
   { href: "/admin/blocked-times", label: "Blocked Times", icon: Ban },
   { href: "/admin/portfolio", label: "Portfolio", icon: ImageIcon },
+  { href: "/admin/notifications", label: "Email Logs", icon: Mail },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
+
 
 const STAFF_NAV_ITEMS: NavItem[] = [
   { href: "/admin/appointments", label: "My Schedule", icon: Calendar },

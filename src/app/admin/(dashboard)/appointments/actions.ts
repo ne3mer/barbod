@@ -161,7 +161,7 @@ export async function createAppointmentAction(data: AppointmentInput) {
   }
 
   // 8. Insert appointment with barber_id
-  const { error: insertError } = await supabase.from("appointments").insert({
+  const { data: inserted, error: insertError } = await supabase.from("appointments").insert({
     business_id: business.id,
     barber_id: barber.id,
     service_id: service.id,
@@ -172,7 +172,7 @@ export async function createAppointmentAction(data: AppointmentInput) {
     start_at: startIso,
     end_at: endIso,
     status: data.status || "confirmed",
-  });
+  }).select("id").single();
 
   if (insertError) {
     console.error("Failed to insert appointment", insertError.message);
@@ -182,9 +182,20 @@ export async function createAppointmentAction(data: AppointmentInput) {
     return { error: insertError.message };
   }
 
+  // Trigger Notification Scheduling asynchronously
+  if (inserted?.id) {
+    try {
+      const { scheduleBookingNotifications } = await import("@/lib/email/scheduler");
+      await scheduleBookingNotifications(inserted.id);
+    } catch (schedErr) {
+      console.error("Failed to schedule notifications for admin-created appointment:", schedErr);
+    }
+  }
+
   revalidatePath("/admin/appointments");
   revalidatePath("/admin");
   return { success: true };
+
 }
 
 export async function updateAppointmentStatusAction(
@@ -223,6 +234,18 @@ export async function updateAppointmentStatusAction(
     return { error: error.message };
   }
 
+  // Trigger status-specific notification jobs
+  try {
+    const { scheduleConfirmationNotification, scheduleCancellationNotifications } = await import("@/lib/email/scheduler");
+    if (status === "confirmed") {
+      await scheduleConfirmationNotification(id);
+    } else if (status === "cancelled") {
+      await scheduleCancellationNotifications(id);
+    }
+  } catch (schedErr) {
+    console.error("Failed to trigger status change notifications:", schedErr);
+  }
+
   revalidatePath("/admin/appointments");
   revalidatePath("/admin");
   return { success: true };
@@ -253,6 +276,9 @@ export async function rescheduleAppointmentAction(
   if (appErr || !app) {
     return { error: "Appointment not found." };
   }
+
+  // Preserve previous start_at timestamp for reschedule comparison
+  const previousStartAtIso = app.start_at;
 
   // If staff, enforce target barber to be staff's own barber_id
   if (context.role === "staff") {
@@ -358,6 +384,14 @@ export async function rescheduleAppointmentAction(
     return { error: updateErr.message };
   }
 
+  // Trigger reschedule notifications asynchronously
+  try {
+    const { scheduleRescheduleNotifications } = await import("@/lib/email/scheduler");
+    await scheduleRescheduleNotifications(id, previousStartAtIso, startIso);
+  } catch (schedErr) {
+    console.error("Failed to schedule reschedule notifications:", schedErr);
+  }
+
   revalidatePath("/admin/appointments");
   revalidatePath("/admin");
   return { success: true };
@@ -384,6 +418,14 @@ export async function deleteAppointmentAction(id: string) {
     }
   }
 
+  // Trigger cancellation notifications before deleting
+  try {
+    const { scheduleCancellationNotifications } = await import("@/lib/email/scheduler");
+    await scheduleCancellationNotifications(id);
+  } catch (schedErr) {
+    console.error("Failed to trigger deletion cancellation notifications:", schedErr);
+  }
+
   const { error } = await supabase
     .from("appointments")
     .delete()
@@ -399,4 +441,5 @@ export async function deleteAppointmentAction(id: string) {
   revalidatePath("/admin");
   return { success: true };
 }
+
 

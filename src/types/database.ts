@@ -483,6 +483,88 @@ export type Database = {
           },
         ];
       };
+      notification_jobs: {
+        Row: {
+          id: string;
+          appointment_id: string | null;
+          barber_id: string | null;
+          business_id: string;
+          recipient_email: string;
+          recipient_type: string;
+          notification_type: string;
+          scheduled_for: string;
+          status: string;
+          attempts: number;
+          last_error: string | null;
+          sent_at: string | null;
+          provider_message_id: string | null;
+          locale: string;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          appointment_id?: string | null;
+          barber_id?: string | null;
+          business_id: string;
+          recipient_email: string;
+          recipient_type: string;
+          notification_type: string;
+          scheduled_for: string;
+          status?: string;
+          attempts?: number;
+          last_error?: string | null;
+          sent_at?: string | null;
+          provider_message_id?: string | null;
+          locale?: string;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          appointment_id?: string | null;
+          barber_id?: string | null;
+          business_id?: string;
+          recipient_email?: string;
+          recipient_type?: string;
+          notification_type?: string;
+          scheduled_for?: string;
+          status?: string;
+          attempts?: number;
+          last_error?: string | null;
+          sent_at?: string | null;
+          provider_message_id?: string | null;
+          locale?: string;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_jobs_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notification_jobs_barber_id_fkey";
+            columns: ["barber_id"];
+            isOneToOne: false;
+            referencedRelation: "barbers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notification_jobs_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -513,11 +595,18 @@ export type Database = {
           end_at: string;
         }[];
       };
+      claim_due_notification_jobs: {
+        Args: {
+          p_limit?: number;
+        };
+        Returns: Database["public"]["Tables"]["notification_jobs"]["Row"][];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
 };
+
 
 export type Tables<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Row"];

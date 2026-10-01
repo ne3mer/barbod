@@ -178,8 +178,17 @@ export async function createPublicBookingAction(data: PublicBookingInput) {
     return { error: "An error occurred while creating your booking. Please try again.", errorCode: "GENERIC" };
   }
 
+  // Asynchronous Notification Job Scheduling (Booking must succeed even if email scheduling fails)
+  try {
+    const { scheduleBookingNotifications } = await import("@/lib/email/scheduler");
+    await scheduleBookingNotifications(inserted.id);
+  } catch (schedErr) {
+    console.error("Failed to schedule booking notifications:", schedErr);
+  }
+
   return {
     success: true,
+
     booking: {
       id: inserted.id,
       barberName: barber.name,
