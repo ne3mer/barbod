@@ -190,17 +190,24 @@ export async function scheduleBookingNotifications(appointmentId: string, custom
     if (jobsToInsert.length > 0) {
       const { error } = await supabase
         .from('notification_jobs')
-        .upsert(jobsToInsert, { onConflict: 'appointment_id, recipient_email, notification_type', ignoreDuplicates: true });
+        .insert(jobsToInsert);
 
-      if (error) {
-        console.error('[Scheduler] Error inserting booking notification jobs:', error.message);
+      if (error && !error.message.includes('duplicate key') && !error.message.includes('unique')) {
+        console.error('[Scheduler] Error inserting notification jobs:', error.message);
       }
+    }
+
+    // Trigger immediate worker processing for due real-time notifications (non-blocking)
+    try {
+      const { processDueNotificationJobs } = await import('./worker');
+      await processDueNotificationJobs(20);
+    } catch (wErr) {
+      console.error('[Scheduler] Automatic worker trigger error:', wErr);
     }
   } catch (err: unknown) {
     console.error('[Scheduler Exception] scheduleBookingNotifications:', err);
   }
 }
-
 
 /**
  * Schedule confirmation email when appointment status becomes 'confirmed'.
@@ -232,7 +239,7 @@ export async function scheduleConfirmationNotification(appointmentId: string, cu
 
     const { error } = await supabase
       .from('notification_jobs')
-      .upsert({
+      .insert({
         appointment_id: appointment.id,
         barber_id: appointment.barber_id,
         business_id: appointment.business_id,
@@ -243,15 +250,24 @@ export async function scheduleConfirmationNotification(appointmentId: string, cu
         status: 'pending',
         locale: 'hu',
         metadata: payload,
-      }, { onConflict: 'appointment_id, recipient_email, notification_type', ignoreDuplicates: true });
+      });
 
-    if (error) {
+    if (error && !error.message.includes('duplicate key') && !error.message.includes('unique')) {
       console.error('[Scheduler] Error scheduling confirmation notification:', error.message);
+    }
+
+    // Trigger immediate worker processing for confirmation
+    try {
+      const { processDueNotificationJobs } = await import('./worker');
+      await processDueNotificationJobs(20);
+    } catch (wErr) {
+      console.error('[Scheduler] Automatic worker trigger error:', wErr);
     }
   } catch (err: unknown) {
     console.error('[Scheduler Exception] scheduleConfirmationNotification:', err);
   }
 }
+
 
 /**
  * Cancel future reminders and schedule cancellation notifications when appointment is cancelled.
@@ -321,9 +337,21 @@ export async function scheduleCancellationNotifications(appointmentId: string, c
     }
 
     if (jobsToInsert.length > 0) {
-      await supabase
+      const { error } = await supabase
         .from('notification_jobs')
-        .upsert(jobsToInsert, { onConflict: 'appointment_id, recipient_email, notification_type', ignoreDuplicates: true });
+        .insert(jobsToInsert);
+
+      if (error && !error.message.includes('duplicate key') && !error.message.includes('unique')) {
+        console.error('[Scheduler] Error inserting cancellation notification jobs:', error.message);
+      }
+    }
+
+    // Trigger immediate worker processing for cancellation
+    try {
+      const { processDueNotificationJobs } = await import('./worker');
+      await processDueNotificationJobs(20);
+    } catch (wErr) {
+      console.error('[Scheduler] Automatic worker trigger error:', wErr);
     }
   } catch (err: unknown) {
     console.error('[Scheduler Exception] scheduleCancellationNotifications:', err);
@@ -378,7 +406,6 @@ export async function scheduleRescheduleNotifications(
     };
 
     const jobsToInsert: NotificationJobInsert[] = [];
-
 
     // Customer Reschedule Email
     if (appointment.customer_email) {
@@ -447,14 +474,27 @@ export async function scheduleRescheduleNotifications(
     }
 
     if (jobsToInsert.length > 0) {
-      await supabase
+      const { error } = await supabase
         .from('notification_jobs')
-        .upsert(jobsToInsert, { onConflict: 'appointment_id, recipient_email, notification_type', ignoreDuplicates: true });
+        .insert(jobsToInsert);
+
+      if (error && !error.message.includes('duplicate key') && !error.message.includes('unique')) {
+        console.error('[Scheduler] Error inserting reschedule notification jobs:', error.message);
+      }
+    }
+
+    // Trigger immediate worker processing for reschedule
+    try {
+      const { processDueNotificationJobs } = await import('./worker');
+      await processDueNotificationJobs(20);
+    } catch (wErr) {
+      console.error('[Scheduler] Automatic worker trigger error:', wErr);
     }
   } catch (err: unknown) {
     console.error('[Scheduler Exception] scheduleRescheduleNotifications:', err);
   }
 }
+
 
 /**
  * Schedule daily barber digest emails for active barbers for a specific date in Europe/Budapest.
@@ -552,9 +592,9 @@ export async function scheduleDailyBarberDigests(dateStrBudapest: string, custom
         studioName: businessObj?.name || 'Barbod Barber',
       };
 
-      await supabase
+      const { error } = await supabase
         .from('notification_jobs')
-        .upsert({
+        .insert({
           barber_id: barberId,
           business_id: barberApps[0].business_id,
           recipient_email: barberEmail,
@@ -564,11 +604,15 @@ export async function scheduleDailyBarberDigests(dateStrBudapest: string, custom
           status: 'pending',
           locale: 'hu',
           metadata: payload,
-        }, { onConflict: 'barber_id, notification_type, (CAST(scheduled_for AT TIME ZONE \'UTC\' AS DATE))', ignoreDuplicates: true });
+        });
 
+      if (error && !error.message.includes('duplicate key') && !error.message.includes('unique')) {
+        console.error('[Scheduler] Error inserting daily digest job:', error.message);
+      }
     }
   } catch (err: unknown) {
     console.error('[Scheduler Exception] scheduleDailyBarberDigests:', err);
   }
 }
+
 

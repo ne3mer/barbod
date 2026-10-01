@@ -42,8 +42,8 @@ CREATE INDEX IF NOT EXISTS idx_notification_jobs_business_id ON public.notificat
 
 -- Idempotency protection: UNIQUE constraint for appointment-specific notifications
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uniq_appointment_notification 
-ON public.notification_jobs (appointment_id, recipient_email, notification_type) 
-WHERE appointment_id IS NOT NULL;
+ON public.notification_jobs (appointment_id, recipient_email, notification_type);
+
 
 -- Idempotency protection for daily digests (one per barber per day)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uniq_barber_daily_digest
