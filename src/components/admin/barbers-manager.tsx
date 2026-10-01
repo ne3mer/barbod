@@ -11,10 +11,12 @@ import {
   Loader2,
   Power,
   Upload,
-  Mail,
   Send,
   CheckCircle2,
   AlertCircle,
+  Link2,
+  Unlink,
+  KeyRound,
 } from "lucide-react";
 
 import type { Tables } from "@/types/database";
@@ -37,11 +39,14 @@ import {
   deleteBarberAction,
   uploadBarberProfilePhotoAction,
   deleteBarberProfilePhotoAction,
-  inviteBarberUserAction,
+  inviteOrConnectBarberAction,
+  sendBarberPasswordResetAction,
+  unlinkBarberUserAction,
 } from "@/app/admin/(dashboard)/barbers/actions";
 
 export type BarberWithServices = Tables<"barbers"> & {
   assignedServiceIds: string[];
+  linkedEmail?: string | null;
 };
 
 interface BarbersManagerProps {
@@ -69,15 +74,26 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
   const [submitting, setSubmitting] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
-  // Invitation Dialog State
+  // Invitation / Connect Dialog State
   const [invitingBarber, setInvitingBarber] = React.useState<BarberWithServices | null>(null);
   const [inviteEmail, setInviteEmail] = React.useState("");
   const [isSendingInvite, setIsSendingInvite] = React.useState(false);
-  const [inviteStatus, setInviteStatus] = React.useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [inviteStatus, setInviteStatus] = React.useState<{
+    type: "success" | "error";
+    msg: string;
+  } | null>(null);
+
+  // Reset Password Dialog State
+  const [resetBarber, setResetBarber] = React.useState<BarberWithServices | null>(null);
+  const [isSendingReset, setIsSendingReset] = React.useState(false);
+  const [resetStatus, setResetStatus] = React.useState<{
+    type: "success" | "error";
+    msg: string;
+  } | null>(null);
 
   const handleOpenInviteModal = (barber: BarberWithServices) => {
     setInvitingBarber(barber);
-    setInviteEmail("");
+    setInviteEmail(barber.linkedEmail || "");
     setInviteStatus(null);
   };
 
@@ -87,16 +103,52 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
     setIsSendingInvite(true);
     setInviteStatus(null);
 
-    const res = await inviteBarberUserAction(invitingBarber.id, inviteEmail);
+    const res = await inviteOrConnectBarberAction(invitingBarber.id, inviteEmail);
     setIsSendingInvite(false);
 
     if (res.error) {
       setInviteStatus({ type: "error", msg: res.error });
     } else {
-      setInviteStatus({
+      if (res.mode === "connected") {
+        setInviteStatus({
+          type: "success",
+          msg: `Account (${res.email}) linked! Password setup email dispatched by Supabase Auth.`,
+        });
+      } else {
+        setInviteStatus({
+          type: "success",
+          msg: `Auth invitation email sent to ${res.email}! Account created & linked.`,
+        });
+      }
+    }
+  };
+
+  const handleSendPasswordReset = async (barber: BarberWithServices) => {
+    setResetBarber(barber);
+    setResetStatus(null);
+    setIsSendingReset(true);
+
+    const res = await sendBarberPasswordResetAction(barber.id);
+    setIsSendingReset(false);
+
+    if (res.error) {
+      setResetStatus({ type: "error", msg: res.error });
+    } else {
+      setResetStatus({
         type: "success",
-        msg: `Invitation sent to ${res.email}! Account is linked to ${invitingBarber.name}.`,
+        msg: `Password reset email dispatched to ${res.email} by Supabase Auth!`,
       });
+    }
+  };
+
+  const handleUnlinkAccount = async (barber: BarberWithServices) => {
+    if (!confirm(`Are you sure you want to unlink the Auth account from ${barber.name}?`)) {
+      return;
+    }
+
+    const res = await unlinkBarberUserAction(barber.id);
+    if (res.error) {
+      alert(res.error);
     }
   };
 
@@ -132,19 +184,16 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
     setIsOpen(true);
   };
 
-
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 1. Client-side MIME validation
     const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
       setPhotoError("Invalid file format. Only JPEG, PNG, and WEBP images are allowed.");
       return;
     }
 
-    // 2. Client-side Size validation (5 MB)
     const MAX_SIZE = 5 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       setPhotoError("File size exceeds 5 MB. Please choose a smaller image.");
@@ -153,7 +202,6 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
 
     setPhotoError(null);
 
-    // If editing existing barber, upload immediately
     if (editingBarber) {
       setUploadingPhoto(true);
       const formData = new FormData();
@@ -169,7 +217,6 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
         setProfilePhotoUrl(res.publicUrl);
       }
     } else {
-      // If adding new barber, stage file and preview locally
       setStagedFile(file);
       const previewUrl = URL.createObjectURL(file);
       setProfilePhotoUrl(previewUrl);
@@ -219,7 +266,6 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
       serviceIds: selectedServiceIds,
     };
 
-
     if (editingBarber) {
       const res = await updateBarberAction(editingBarber.id, payload);
       setSubmitting(false);
@@ -230,7 +276,6 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
         setIsOpen(false);
       }
     } else {
-      // Create barber first
       const res = await createBarberAction(payload);
       if (res.error || !res.barber) {
         setSubmitting(false);
@@ -238,7 +283,6 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
         return;
       }
 
-      // Upload photo if staged
       if (stagedFile) {
         const formData = new FormData();
         formData.append("file", stagedFile);
@@ -299,6 +343,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {barbers.map((barber) => {
             const assignedCount = barber.assignedServiceIds.length;
+            const isLinked = Boolean(barber.user_id);
 
             return (
               <Card
@@ -324,9 +369,15 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                       <CardTitle className="text-base font-serif font-semibold">
                         {barber.name}
                       </CardTitle>
-                      <CardDescription className="text-xs font-mono">
-                        Order #{barber.display_order}
-                      </CardDescription>
+                      {barber.linkedEmail ? (
+                        <p className="text-[11px] font-mono text-primary truncate max-w-[160px]" title={barber.linkedEmail}>
+                          {barber.linkedEmail}
+                        </p>
+                      ) : (
+                        <CardDescription className="text-xs font-mono">
+                          Order #{barber.display_order}
+                        </CardDescription>
+                      )}
                     </div>
                   </div>
 
@@ -334,11 +385,10 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                     <Badge variant={barber.is_active ? "success" : "secondary"}>
                       {barber.is_active ? "Active" : "Inactive"}
                     </Badge>
-                    <Badge variant={barber.user_id ? "info" : "outline"} className="text-[10px]">
-                      {barber.user_id ? "Linked Login" : "Unlinked Staff"}
+                    <Badge variant={isLinked ? "info" : "outline"} className="text-[10px]">
+                      {isLinked ? "Linked Login" : "Unlinked Staff"}
                     </Badge>
                   </div>
-
                 </CardHeader>
 
                 <CardContent className="space-y-4 pt-0">
@@ -364,45 +414,70 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                     </span>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-between border-t border-border/50 pt-3">
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => handleToggleActive(barber)}
-                      className="gap-1.5 text-xs"
-                    >
-                      <Power className={`size-3.5 ${barber.is_active ? "text-emerald-500" : "text-muted-foreground"}`} />
-                      <span>{barber.is_active ? "Deactivate" : "Activate"}</span>
-                    </Button>
+                  {/* Account Management & Actions */}
+                  <div className="flex flex-col gap-2 border-t border-border/50 pt-3">
+                    <div className="flex items-center justify-between gap-1.5">
+                      {isLinked ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => handleSendPasswordReset(barber)}
+                            className="gap-1 text-[11px] text-primary border-primary/30 hover:bg-primary/10"
+                            title="Send Password Reset Link"
+                          >
+                            <KeyRound className="size-3" />
+                            <span>Reset Password</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => handleUnlinkAccount(barber)}
+                            className="gap-1 text-[11px] text-muted-foreground hover:text-destructive"
+                            title="Unlink Auth Account"
+                          >
+                            <Unlink className="size-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => handleOpenInviteModal(barber)}
+                          className="gap-1 text-[11px] text-primary border-primary/30 hover:bg-primary/10"
+                        >
+                          <Link2 className="size-3" />
+                          <span>Connect / Invite</span>
+                        </Button>
+                      )}
 
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        onClick={() => handleOpenInviteModal(barber)}
-                        className="gap-1 text-xs text-primary border-primary/30 hover:bg-primary/10"
-                      >
-                        <Mail className="size-3" />
-                        <span>Invite</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        onClick={() => handleOpenEdit(barber)}
-                        className="gap-1 text-xs"
-                      >
-                        <Edit2 className="size-3" />
-                        <span>Edit</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => handleDelete(barber)}
-                        className="text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="size-3" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => handleToggleActive(barber)}
+                          className="gap-1 text-xs"
+                          title={barber.is_active ? "Deactivate Barber" : "Activate Barber"}
+                        >
+                          <Power className={`size-3.5 ${barber.is_active ? "text-emerald-500" : "text-muted-foreground"}`} />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => handleOpenEdit(barber)}
+                          className="gap-1 text-xs"
+                        >
+                          <Edit2 className="size-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => handleDelete(barber)}
+                          className="text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -412,15 +487,15 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
         </div>
       )}
 
-      {/* Invite Barber Auth Dialog */}
+      {/* Invite / Connect Barber Auth Dialog */}
       {invitingBarber && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs animate-in fade-in">
           <div className="w-full max-w-md rounded-sm border border-border bg-background p-6 shadow-2xl space-y-5">
             <div className="border-b border-border pb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Mail className="size-5 text-primary" />
+                <Link2 className="size-5 text-primary" />
                 <h2 className="text-lg font-bold font-serif">
-                  Invite Barber Login: {invitingBarber.name}
+                  Connect Account: {invitingBarber.name}
                 </h2>
               </div>
               <Button variant="ghost" size="xs" onClick={() => setInvitingBarber(null)}>
@@ -429,8 +504,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
             </div>
 
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Sends an official authentication invitation email via Supabase Auth Admin API.
-              The barber will receive a password setup link, and their login account will be automatically linked to this barber profile upon confirmation.
+              Enter the barber&apos;s email address. If the email is brand new, an official invitation email will be sent. If an account already exists in Supabase Auth, it will be securely linked to this barber profile and a password setup email will be triggered.
             </p>
 
             {inviteStatus && (
@@ -460,7 +534,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                   type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="e.g. barber@barbod.com"
+                  placeholder="e.g. ne3mero@gmail.com"
                   required
                 />
               </div>
@@ -473,17 +547,66 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                   {isSendingInvite ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />
-                      <span>Sending Invitation...</span>
+                      <span>Processing Account...</span>
                     </>
                   ) : (
                     <>
                       <Send className="size-4" />
-                      <span>Send Auth Invitation</span>
+                      <span>Connect / Send Setup Email</span>
                     </>
                   )}
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Modal */}
+      {resetBarber && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-sm border border-border bg-background p-6 shadow-2xl space-y-5">
+            <div className="border-b border-border pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="size-5 text-primary" />
+                <h2 className="text-lg font-bold font-serif">
+                  Reset Password: {resetBarber.name}
+                </h2>
+              </div>
+              <Button variant="ghost" size="xs" onClick={() => setResetBarber(null)}>
+                ✕
+              </Button>
+            </div>
+
+            {isSendingReset ? (
+              <div className="py-8 text-center space-y-3">
+                <Loader2 className="size-8 animate-spin text-primary mx-auto" />
+                <p className="text-xs text-muted-foreground">Sending password reset email...</p>
+              </div>
+            ) : resetStatus ? (
+              <div className="space-y-4">
+                <div
+                  className={`p-3 text-xs rounded-sm border flex items-start gap-2 ${
+                    resetStatus.type === "success"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                      : "bg-destructive/10 border-destructive/20 text-destructive"
+                  }`}
+                >
+                  {resetStatus.type === "success" ? (
+                    <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                  )}
+                  <span>{resetStatus.msg}</span>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-border">
+                  <Button size="sm" onClick={() => setResetBarber(null)}>
+                    Done
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

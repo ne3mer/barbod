@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  createAdminClient,
+  findAuthUserByEmail,
+  findAuthUserById,
+  inviteNewUserByEmail,
+  sendPasswordResetEmail,
+} from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/auth/session";
 import type { TablesUpdate } from "@/types/database";
 
@@ -198,7 +204,7 @@ export async function linkBarberUserAction(barberId: string, targetUserId: strin
   return { success: true };
 }
 
-export async function inviteBarberUserAction(barberId: string, email: string) {
+export async function inviteOrConnectBarberAction(barberId: string, email: string) {
   const context = await getAdminContext();
   if (!context || context.role !== "owner") {
     return { error: "Unauthorized: Owner access required." };
@@ -206,14 +212,14 @@ export async function inviteBarberUserAction(barberId: string, email: string) {
 
   const trimmedEmail = email.trim().toLowerCase();
   if (!trimmedEmail || !trimmedEmail.includes("@")) {
-    return { error: "A valid email address is required for invitation." };
+    return { error: "A valid email address is required." };
   }
 
   const adminClient = createAdminClient();
   if (!adminClient) {
     return {
       error:
-        "Server configuration missing: SUPABASE_SERVICE_ROLE_KEY environment variable is required to send automated invitations.",
+        "Server configuration missing: SUPABASE_SERVICE_ROLE_KEY environment variable is required to manage barber accounts.",
     };
   }
 
@@ -230,49 +236,151 @@ export async function inviteBarberUserAction(barberId: string, email: string) {
     return { error: "Barber record not found." };
   }
 
-  // Invite user via Supabase Auth Admin API
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const { data: inviteData, error: inviteErr } =
-    await adminClient.auth.admin.inviteUserByEmail(trimmedEmail, {
-      redirectTo: `${siteUrl}/admin/login`,
-    });
+  const resetRedirectUrl = `${siteUrl}/admin/reset-password`;
 
-  if (inviteErr || !inviteData?.user) {
-    console.error("Supabase invite user error:", inviteErr);
-    return { error: inviteErr?.message || "Failed to send auth invitation." };
+  // Check if auth user already exists for this email
+  const { user: existingAuthUser, error: lookupErr } = await findAuthUserByEmail(trimmedEmail);
+  if (lookupErr) {
+    return { error: `Auth lookup failed: ${lookupErr}` };
   }
 
-  const userId = inviteData.user.id;
+  if (existingAuthUser) {
+    // CASE B: Existing Auth User
+    // Check if this Auth user is already linked to another barber
+    const { data: alreadyLinked } = await supabase
+      .from("barbers")
+      .select("id, name")
+      .eq("user_id", existingAuthUser.id)
+      .neq("id", barberId)
+      .maybeSingle();
 
-  // Ensure invited user isn't already linked to another barber
-  const { data: existing } = await supabase
-    .from("barbers")
-    .select("id, name")
-    .eq("user_id", userId)
-    .neq("id", barberId)
-    .maybeSingle();
+    if (alreadyLinked) {
+      return {
+        error: `Account (${trimmedEmail}) is already linked to barber "${alreadyLinked.name}".`,
+      };
+    }
 
-  if (existing) {
+    // Link user_id to barber
+    const { error: updateErr } = await supabase
+      .from("barbers")
+      .update({ user_id: existingAuthUser.id })
+      .eq("id", barberId)
+      .eq("business_id", context.business.id);
+
+    if (updateErr) {
+      return { error: `Failed to link account to barber record: ${updateErr.message}` };
+    }
+
+    // Send password setup / recovery email via Supabase Auth
+    const emailRes = await sendPasswordResetEmail(trimmedEmail, resetRedirectUrl);
+    if (emailRes.error) {
+      return {
+        error: `Account linked successfully, but sending password setup email failed: ${emailRes.error}`,
+      };
+    }
+
+    revalidatePath("/admin/barbers");
     return {
-      error: `Invited account (${trimmedEmail}) is already linked to barber ${existing.name}.`,
+      success: true,
+      mode: "connected" as const,
+      email: trimmedEmail,
+      userId: existingAuthUser.id,
+    };
+  } else {
+    // CASE A: New Barber Email -> Invite
+    const inviteRes = await inviteNewUserByEmail(trimmedEmail, resetRedirectUrl);
+    if (inviteRes.error || !inviteRes.user) {
+      return { error: inviteRes.error || "Failed to send auth invitation email." };
+    }
+
+    const newUserId = inviteRes.user.id;
+
+    // Link newly invited user_id to barber
+    const { error: updateErr } = await supabase
+      .from("barbers")
+      .update({ user_id: newUserId })
+      .eq("id", barberId)
+      .eq("business_id", context.business.id);
+
+    if (updateErr) {
+      return {
+        error: `Invitation sent, but failed to link account to barber record: ${updateErr.message}`,
+      };
+    }
+
+    revalidatePath("/admin/barbers");
+    return {
+      success: true,
+      mode: "invited" as const,
+      email: trimmedEmail,
+      userId: newUserId,
     };
   }
+}
 
-  // Link user_id to barber
-  const { error: updateErr } = await supabase
+export async function sendBarberPasswordResetAction(barberId: string) {
+  const context = await getAdminContext();
+  if (!context || context.role !== "owner") {
+    return { error: "Unauthorized: Owner access required." };
+  }
+
+  const supabase = await createClient();
+
+  const { data: barber, error: barErr } = await supabase
     .from("barbers")
-    .update({ user_id: userId })
+    .select("id, name, user_id, business_id")
     .eq("id", barberId)
-    .eq("business_id", context.business.id);
+    .single();
 
-  if (updateErr) {
-    return {
-      error: `Invitation sent, but failed to link account: ${updateErr.message}`,
-    };
+  if (barErr || !barber || barber.business_id !== context.business.id) {
+    return { error: "Barber record not found." };
+  }
+
+  if (!barber.user_id) {
+    return { error: "This barber does not have a linked user account." };
+  }
+
+  const authUserRes = await findAuthUserById(barber.user_id);
+  if (authUserRes.error || !authUserRes.user?.email) {
+    return { error: authUserRes.error || "Linked Auth user not found." };
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const resetRedirectUrl = `${siteUrl}/admin/reset-password`;
+
+  const emailRes = await sendPasswordResetEmail(authUserRes.user.email, resetRedirectUrl);
+  if (emailRes.error) {
+    return { error: emailRes.error };
   }
 
   revalidatePath("/admin/barbers");
-  return { success: true, email: trimmedEmail, userId };
+  return {
+    success: true,
+    email: authUserRes.user.email,
+  };
+}
+
+export async function unlinkBarberUserAction(barberId: string) {
+  const context = await getAdminContext();
+  if (!context || context.role !== "owner") {
+    return { error: "Unauthorized: Owner access required." };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("barbers")
+    .update({ user_id: null })
+    .eq("id", barberId)
+    .eq("business_id", context.business.id);
+
+  if (error) {
+    return { error: `Failed to unlink user account: ${error.message}` };
+  }
+
+  revalidatePath("/admin/barbers");
+  return { success: true };
 }
 
 export async function toggleBarberActiveAction(id: string, is_active: boolean) {

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminContext } from "@/lib/auth/session";
 import { BarbersManager } from "@/components/admin/barbers-manager";
 
@@ -15,7 +16,6 @@ export default async function AdminBarbersPage() {
   }
 
   const business = context.business;
-
 
   const supabase = await createClient();
 
@@ -45,9 +45,26 @@ export default async function AdminBarbersPage() {
     bsMap[row.barber_id].push(row.service_id);
   });
 
+  // Fetch linked emails for barbers with user_id
+  const userEmailMap: Record<string, string> = {};
+  const linkedUserIds = (barbers ?? []).map((b) => b.user_id).filter(Boolean) as string[];
+
+  if (linkedUserIds.length > 0) {
+    const adminClient = createAdminClient();
+    if (adminClient) {
+      const { data: usersData } = await adminClient.auth.admin.listUsers();
+      if (usersData?.users) {
+        usersData.users.forEach((u) => {
+          userEmailMap[u.id] = u.email || "";
+        });
+      }
+    }
+  }
+
   const barbersWithServices = (barbers ?? []).map((b) => ({
     ...b,
     assignedServiceIds: bsMap[b.id] || [],
+    linkedEmail: b.user_id ? userEmailMap[b.user_id] || null : null,
   }));
 
   return (

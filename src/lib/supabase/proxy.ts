@@ -36,18 +36,21 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
-  const isLoginRoute =
-    pathname === "/admin/login" || pathname.startsWith("/admin/login/");
+  const isAuthRoute =
+    pathname === "/admin/login" ||
+    pathname.startsWith("/admin/login/") ||
+    pathname === "/admin/reset-password" ||
+    pathname.startsWith("/admin/reset-password/");
 
   if (isAdminRoute) {
-    if (!user && !isLoginRoute) {
+    if (!user && !isAuthRoute) {
       const url = request.nextUrl.clone();
       url.pathname = "/admin/login";
       url.search = "";
       return redirectWithSession(url, supabaseResponse);
     }
 
-    if (user && isLoginRoute) {
+    if (user && pathname.startsWith("/admin/login")) {
       const url = request.nextUrl.clone();
       url.pathname = "/admin";
       url.search = "";
