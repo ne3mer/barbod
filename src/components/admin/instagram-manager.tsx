@@ -53,7 +53,7 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
             Atelier Instagram Feed
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
-            Manage real-time Meta Graph API connection, view synced media, and revalidate cache for @barbodbarber.
+            Manage real-time Meta Graph API connection, view synced media, and revalidate cache for @barbod.barber.hu.
           </p>
         </div>
 
@@ -109,10 +109,10 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
           <span className="eyebrow block text-[10px]">ACCOUNT</span>
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-foreground font-mono">
-              @barbodbarber
+              @barbod.barber.hu
             </h3>
             <a
-              href="https://www.instagram.com/barbodbarber"
+              href="https://www.instagram.com/barbod.barber.hu"
               target="_blank"
               rel="noreferrer"
               className="text-xs text-primary hover:underline flex items-center gap-1 font-mono"
@@ -176,7 +176,7 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
 
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs font-mono text-muted-foreground">
-                    <span>@{item.username || "barbodbarber"}</span>
+                    <span>@{item.username || "barbod.barber.hu"}</span>
                     <span>{new Date(item.timestamp).toLocaleDateString()}</span>
                   </div>
                   <p className="text-xs text-foreground/90 font-light line-clamp-2 leading-relaxed">
@@ -211,7 +211,7 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
           <span>Meta / Instagram API Configuration Guide</span>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          To connect your live @barbodbarber Instagram account, add the following environment variables to Vercel and your <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">.env.local</code> file:
+          To connect your live @barbod.barber.hu Instagram account, add the following environment variables to Vercel and your <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">.env.local</code> file:
         </p>
         <div className="bg-muted p-4 rounded-lg font-mono text-xs text-foreground space-y-1 overflow-x-auto">
           <div><span className="text-muted-foreground"># Server-only Meta / Instagram Graph API Access Token</span></div>
@@ -224,7 +224,7 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
           <ol className="list-decimal list-inside space-y-1 pl-1">
             <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-primary underline">developers.facebook.com</a> and create a Meta App.</li>
             <li>Add the <strong>Instagram Basic Display API</strong> or <strong>Instagram Graph API</strong> product.</li>
-            <li>Generate a long-lived Access Token for `@barbodbarber`.</li>
+            <li>Generate a long-lived Access Token for `@barbod.barber.hu`.</li>
             <li>Add `INSTAGRAM_ACCESS_TOKEN` in Vercel project settings under Environment Variables.</li>
           </ol>
         </div>

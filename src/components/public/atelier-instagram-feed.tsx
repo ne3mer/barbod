@@ -18,9 +18,9 @@ export function AtelierInstagramFeed({ items }: AtelierInstagramFeedProps) {
   const tTitle = lang === "hu" ? "AZ ATELIERBŐL" : "FROM THE ATELIER";
   const tSubtitle =
     lang === "hu"
-      ? "Legújabb munkák, pillanatok és részletek a @barbodbarber-től"
-      : "Recent work, moments & details from @barbodbarber";
-  const tFollow = lang === "hu" ? "KÖVESSE A @BARBODBARBER-T ↗" : "FOLLOW @BARBODBARBER ↗";
+      ? "Legújabb munkák, pillanatok és részletek a @barbod.barber.hu-tól"
+      : "Recent work, moments & details from @barbod.barber.hu";
+  const tFollow = lang === "hu" ? "KÖVESSE A @BARBOD.BARBER.HU-T ↗" : "FOLLOW @BARBOD.BARBER.HU ↗";
   const tViewOnInsta = lang === "hu" ? "MEGTEKINTÉS INSTAGRAMON ↗" : "VIEW ON INSTAGRAM ↗";
 
   if (displayItems.length === 0) return null;
@@ -32,7 +32,7 @@ export function AtelierInstagramFeed({ items }: AtelierInstagramFeedProps) {
         <div className="space-y-2 min-w-0">
           <div className="inline-flex items-center gap-2 text-xs font-mono font-semibold uppercase tracking-[0.2em] text-primary">
             <InstagramIcon className="size-3.5 shrink-0" />
-            <span>@BARBODBARBER</span>
+            <span>@BARBOD.BARBER.HU</span>
           </div>
           <h2 className="text-3xl sm:text-5xl font-normal tracking-tight text-foreground font-serif break-words">
             {tTitle}
@@ -43,7 +43,7 @@ export function AtelierInstagramFeed({ items }: AtelierInstagramFeedProps) {
         </div>
 
         <a
-          href="https://www.instagram.com/barbodbarber"
+          href="https://www.instagram.com/barbod.barber.hu"
           target="_blank"
           rel="noreferrer"
           className="shrink-0 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-5 py-2 text-xs font-mono font-semibold uppercase tracking-wider text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-200"
@@ -109,7 +109,7 @@ export function AtelierInstagramFeed({ items }: AtelierInstagramFeedProps) {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-[11px] font-mono text-primary font-semibold uppercase tracking-wider">
-                    <span>@{item.username || "barbodbarber"}</span>
+                    <span>@{item.username || "barbod.barber.hu"}</span>
                     <span>{formattedDate}</span>
                   </div>
 
@@ -165,7 +165,7 @@ export function AtelierInstagramFeed({ items }: AtelierInstagramFeedProps) {
                 {/* Bottom Overlay Card */}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-4 space-y-1.5">
                   <div className="flex items-center justify-between text-[10px] font-mono text-primary font-semibold">
-                    <span>@{item.username || "barbodbarber"}</span>
+                    <span>@{item.username || "barbod.barber.hu"}</span>
                     <span>{formattedDate}</span>
                   </div>
                   {item.caption && (

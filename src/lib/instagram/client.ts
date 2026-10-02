@@ -5,12 +5,12 @@ import type { InstagramFeedResponse, InstagramMediaItem } from "./types";
 const FALLBACK_ATELIER_POSTS: InstagramMediaItem[] = [
   {
     id: "atelier-post-1",
-    caption: "Precision skin fade & classic beard sculpture at Barbod Barber Atelier, Budapest. #barbodbarber #budapestbarber #precisioncut",
+    caption: "Precision skin fade & classic beard sculpture at Barbod Barber Atelier, Budapest. #barbodbarberhu #budapestbarber #precisioncut",
     media_type: "IMAGE",
     media_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=1200&auto=format&fit=crop",
-    permalink: "https://www.instagram.com/barbodbarber",
+    permalink: "https://www.instagram.com/barbod.barber.hu",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(),
-    username: "barbodbarber",
+    username: "barbod.barber.hu",
     is_pinned: true,
   },
   {
@@ -19,9 +19,9 @@ const FALLBACK_ATELIER_POSTS: InstagramMediaItem[] = [
     media_type: "VIDEO",
     media_url: "https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=900&auto=format&fit=crop",
     thumbnail_url: "https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=900&auto=format&fit=crop",
-    permalink: "https://www.instagram.com/barbodbarber",
+    permalink: "https://www.instagram.com/barbod.barber.hu",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-    username: "barbodbarber",
+    username: "barbod.barber.hu",
     is_reel: true,
     reel_duration: "00:24",
   },
@@ -30,36 +30,36 @@ const FALLBACK_ATELIER_POSTS: InstagramMediaItem[] = [
     caption: "Tailored scissor work for modern elegance. Details matter.",
     media_type: "IMAGE",
     media_url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=900&auto=format&fit=crop",
-    permalink: "https://www.instagram.com/barbodbarber",
+    permalink: "https://www.instagram.com/barbod.barber.hu",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-    username: "barbodbarber",
+    username: "barbod.barber.hu",
   },
   {
     id: "atelier-post-4",
     caption: "Behind the scenes at the atelier. Precision tools for precision craftsmanship.",
     media_type: "CAROUSEL_ALBUM",
     media_url: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=900&auto=format&fit=crop",
-    permalink: "https://www.instagram.com/barbodbarber",
+    permalink: "https://www.instagram.com/barbod.barber.hu",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-    username: "barbodbarber",
+    username: "barbod.barber.hu",
   },
   {
     id: "atelier-post-5",
     caption: "Classic taper fade styled with matte finish pomade. Barbod Signature Cut.",
     media_type: "IMAGE",
     media_url: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=900&auto=format&fit=crop",
-    permalink: "https://www.instagram.com/barbodbarber",
+    permalink: "https://www.instagram.com/barbod.barber.hu",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
-    username: "barbodbarber",
+    username: "barbod.barber.hu",
   },
   {
     id: "atelier-post-6",
     caption: "Atmosphere & architectural details of our Budapest grooming studio.",
     media_type: "IMAGE",
     media_url: "https://images.unsplash.com/photo-1512690459411-b9245aed614b?q=80&w=900&auto=format&fit=crop",
-    permalink: "https://www.instagram.com/barbodbarber",
+    permalink: "https://www.instagram.com/barbod.barber.hu",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-    username: "barbodbarber",
+    username: "barbod.barber.hu",
   },
 ];
 
@@ -119,9 +119,9 @@ export async function fetchInstagramFeed(forceRefresh = false): Promise<Instagra
       const mediaType = typeof item.media_type === "string" ? (item.media_type as "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM") : "IMAGE";
       const mediaUrl = typeof item.media_url === "string" ? item.media_url : "";
       const thumbnailUrl = typeof item.thumbnail_url === "string" ? item.thumbnail_url : undefined;
-      const permalink = typeof item.permalink === "string" ? item.permalink : "https://www.instagram.com/barbodbarber";
+      const permalink = typeof item.permalink === "string" ? item.permalink : "https://www.instagram.com/barbod.barber.hu";
       const timestamp = typeof item.timestamp === "string" ? item.timestamp : new Date().toISOString();
-      const username = typeof item.username === "string" ? item.username : "barbodbarber";
+      const username = typeof item.username === "string" ? item.username : "barbod.barber.hu";
 
       const isVideo = mediaType === "VIDEO";
       const isReel = isVideo && (captionStr.toLowerCase().includes("reel") || captionStr.toLowerCase().includes("#reel"));

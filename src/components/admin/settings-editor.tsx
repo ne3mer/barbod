@@ -189,7 +189,7 @@ export function SettingsEditor({ business }: { business: AdminBusiness }) {
                 id="b_instagram"
                 value={instagramUrl}
                 onChange={(e) => setInstagramUrl(e.target.value)}
-                placeholder="https://instagram.com/barbodbarber"
+                placeholder="https://instagram.com/barbod.barber.hu"
               />
             </div>
             <div className="space-y-1.5">
