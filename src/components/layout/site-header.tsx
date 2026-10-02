@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, Scissors, Menu, X } from "lucide-react";
+import { ArrowRight, Scissors, Menu, X, Globe } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { LanguageSwitcher, useLanguage } from "@/lib/i18n/context";
 
 export function SiteHeader() {
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   // Close menu on Escape key
@@ -24,7 +24,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full max-w-full border-b border-white/10 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top,0px)]">
-      <div className="mx-auto flex h-16 sm:h-20 max-w-7xl w-full min-w-0 items-center justify-between px-3 sm:px-6 gap-2">
+      <div className="mx-auto flex h-16 sm:h-20 max-w-7xl w-full min-w-0 items-center justify-between px-4 sm:px-6 gap-2">
         <Link
           href="/"
           className="flex items-center gap-2 sm:gap-3 text-base font-bold tracking-tight text-foreground hover:opacity-90 transition-opacity group min-w-0 shrink"
@@ -56,8 +56,10 @@ export function SiteHeader() {
             </Link>
           </div>
 
-          {/* Compact Language Switcher Pill */}
-          <LanguageSwitcher />
+          {/* Desktop-only Language Switcher */}
+          <div className="hidden md:block">
+            <LanguageSwitcher />
+          </div>
 
           {/* Desktop Book CTA */}
           <Link
@@ -82,10 +84,19 @@ export function SiteHeader() {
         </nav>
       </div>
 
-      {/* Minimal Editorial Mobile Navigation Dropdown */}
+      {/* Editorial Mobile Navigation Dropdown */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-white/10 bg-background/98 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200 w-full max-w-full overflow-hidden">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-5">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-6">
+            {/* Creative Mobile Language Selector */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 bg-white/[0.02] p-3 rounded-lg border">
+              <div className="flex items-center gap-2 text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider">
+                <Globe className="size-3.5 text-primary shrink-0" />
+                <span>{lang === "hu" ? "Nyelvválasztás" : "Language / Nyelv"}</span>
+              </div>
+              <LanguageSwitcher />
+            </div>
+
             <div className="flex flex-col space-y-4 text-sm font-semibold uppercase tracking-[0.15em] font-mono">
               <Link
                 href="/#services"
@@ -119,7 +130,7 @@ export function SiteHeader() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="block w-full"
               >
-                <Button className="w-full group gap-2 text-xs uppercase tracking-[0.15em] font-semibold py-5">
+                <Button className="w-full group gap-2 text-xs uppercase tracking-[0.15em] font-semibold py-5 shadow-lg">
                   <span>{t.bookNow}</span>
                   <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
                 </Button>
