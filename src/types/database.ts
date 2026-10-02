@@ -114,6 +114,47 @@ export type Database = {
           },
         ];
       };
+      instagram_connections: {
+        Row: {
+          id: string;
+          business_id: string;
+          instagram_user_id: string;
+          username: string;
+          encrypted_access_token: string;
+          token_expires_at: string | null;
+          connected_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          instagram_user_id: string;
+          username: string;
+          encrypted_access_token: string;
+          token_expires_at?: string | null;
+          connected_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          instagram_user_id?: string;
+          username?: string;
+          encrypted_access_token?: string;
+          token_expires_at?: string | null;
+          connected_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "instagram_connections_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: true;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       barbers: {
         Row: {
           id: string;

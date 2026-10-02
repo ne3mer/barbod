@@ -2,43 +2,80 @@
 
 /* eslint-disable @next/next/no-img-element */
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
   ExternalLink,
   Key,
+  LogOut,
+  ShieldAlert,
+  Sparkles,
 } from "lucide-react";
 import { InstagramIcon } from "@/components/ui/icons";
 import type { InstagramFeedResponse } from "@/lib/instagram/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { refreshInstagramFeedCacheAction } from "@/app/admin/(dashboard)/instagram/actions";
+import {
+  refreshInstagramFeedCacheAction,
+  disconnectInstagramAction,
+} from "@/app/admin/(dashboard)/instagram/actions";
 
 interface InstagramManagerProps {
   feed: InstagramFeedResponse;
+  userRole: "owner" | "staff";
 }
 
-export function InstagramManager({ feed }: InstagramManagerProps) {
+export function InstagramManager({ feed, userRole }: InstagramManagerProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = React.useState(false);
-  const [msg, setMsg] = React.useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = React.useState(false);
+  const urlSuccess = searchParams.get("success");
+  const urlError = searchParams.get("error");
+
+  const [localMsg, setLocalMsg] = React.useState<{ text: string; isError: boolean } | null>(null);
+
+  const msg = localMsg || (urlSuccess === "connected"
+    ? { text: "Instagram account successfully authorized and connected!", isError: false }
+    : urlError
+    ? { text: `Connection Error: ${decodeURIComponent(urlError)}`, isError: true }
+    : null);
 
   const handleRefresh = async () => {
     setLoading(true);
-    setMsg(null);
+    setLocalMsg(null);
     const res = await refreshInstagramFeedCacheAction();
     setLoading(false);
     if (res.error) {
-      setMsg(`Error: ${res.error}`);
+      setLocalMsg({ text: `Error: ${res.error}`, isError: true });
     } else {
-      setMsg("Instagram feed cache successfully refreshed!");
+      setLocalMsg({ text: "Instagram feed cache successfully refreshed!", isError: false });
       router.refresh();
     }
   };
 
-  const isConnected = !feed.isFallback;
+  const handleDisconnect = async () => {
+    if (!confirm("Are you sure you want to disconnect Instagram? This will remove the authorized credential and revert to fallback media.")) {
+      return;
+    }
+    setDisconnecting(true);
+    setLocalMsg(null);
+    const res = await disconnectInstagramAction();
+    setDisconnecting(false);
+    if (res.error) {
+      setLocalMsg({ text: `Error disconnecting: ${res.error}`, isError: true });
+    } else {
+      setLocalMsg({ text: "Instagram account disconnected.", isError: false });
+      router.refresh();
+    }
+  };
+
+  const isConnected = feed.connectionStatus === "CONNECTED";
+  const isExpired = feed.connectionStatus === "EXPIRED";
+  const accountName = feed.connectedAccount?.username || "barbod.barber.hu";
+  const isOwner = userRole === "owner";
 
   return (
     <div className="space-y-8">
@@ -47,110 +84,171 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
         <div>
           <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary mb-1">
             <InstagramIcon className="size-4 shrink-0" />
-            <span>INSTAGRAM PLATFORM API</span>
+            <span>INSTAGRAM PLATFORM OAUTH</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground font-serif">
-            Atelier Instagram Feed
+            Instagram Feed Connection
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
-            Manage real-time Instagram Platform API connection (Instagram Login for Professional Accounts), view synced media, and revalidate cache for @barbod.barber.hu.
+            Connect your Barbod Instagram account (@barbod.barber.hu) via official Meta OAuth authorization to display recent work in &quot;From the Atelier&quot;.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             onClick={handleRefresh}
             disabled={loading}
-            className="gap-2 text-xs font-semibold uppercase tracking-wider min-h-[40px] px-5"
+            variant="outline"
+            className="gap-2 text-xs font-semibold uppercase tracking-wider min-h-[40px] px-4"
           >
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
             <span>{loading ? "Refreshing..." : "Refresh Feed Cache"}</span>
           </Button>
+
+          {isConnected && isOwner && (
+            <Button
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              variant="destructive"
+              className="gap-2 text-xs font-semibold uppercase tracking-wider min-h-[40px] px-4"
+            >
+              <LogOut className="size-3.5" />
+              <span>{disconnecting ? "Disconnecting..." : "Disconnect"}</span>
+            </Button>
+          )}
         </div>
       </div>
 
+      {/* Alert Messages */}
       {msg && (
-        <div className="p-4 rounded-lg bg-card border border-border text-xs font-mono text-primary flex items-center justify-between">
-          <span>{msg}</span>
-          <button onClick={() => setMsg(null)} className="text-muted-foreground hover:text-foreground">
+        <div
+          className={`p-4 rounded-lg border text-xs font-mono flex items-center justify-between ${
+            msg.isError
+              ? "bg-destructive/10 border-destructive/30 text-destructive"
+              : "bg-primary/10 border-primary/30 text-primary"
+          }`}
+        >
+          <span>{msg.text}</span>
+          <button onClick={() => setLocalMsg(null)} className="opacity-70 hover:opacity-100 text-lg leading-none">
             ×
           </button>
         </div>
       )}
 
-      {/* 2. Connection Status & Account Overview */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        {/* Status Card */}
-        <div className="rounded-xl border border-border bg-card p-5 space-y-2">
-          <span className="eyebrow block text-[10px]">API STATUS</span>
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-foreground">
-              {isConnected ? "Connected" : "Fallback Mode"}
-            </h3>
-            {isConnected ? (
-              <Badge variant="success" className="gap-1">
-                <CheckCircle2 className="size-3" /> Live API
-              </Badge>
-            ) : (
-              <Badge variant="warning" className="gap-1">
-                <AlertTriangle className="size-3" /> Token Required
-              </Badge>
-            )}
+      {/* 2. Main OAuth Action & Connection Overview Card */}
+      <div className="rounded-xl border border-border bg-card p-6 space-y-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-border">
+          <div className="space-y-1.5 max-w-xl">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-serif font-bold text-foreground">
+                Connection Status
+              </h2>
+              {isConnected ? (
+                <Badge variant="success" className="gap-1 px-2.5 py-0.5 text-xs">
+                  <CheckCircle2 className="size-3" /> CONNECTED ✓
+                </Badge>
+              ) : isExpired ? (
+                <Badge variant="destructive" className="gap-1 px-2.5 py-0.5 text-xs">
+                  <AlertTriangle className="size-3" /> TOKEN EXPIRED
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="gap-1 px-2.5 py-0.5 text-xs">
+                  NOT CONNECTED
+                </Badge>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {isConnected
+                ? `Authorized as @${accountName}. Serving live media posts from Instagram Platform API.`
+                : isExpired
+                ? "Your Instagram Access Token has expired. Please re-authorize your account."
+                : "No live Instagram account authorized. Authorize @barbod.barber.hu to replace fallback media with live posts."}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground font-light">
-            {isConnected
-              ? "Instagram Platform API token is active and serving live posts."
-              : "Serving curated Barbod Atelier fallback posts. Add INSTAGRAM_ACCESS_TOKEN to connect live account."}
-          </p>
+
+          {/* Connect / Reconnect CTA Button */}
+          {(!isConnected || isExpired) && (
+            <div className="shrink-0 flex flex-col items-start md:items-end gap-1.5">
+              {isOwner ? (
+                <a
+                  href="/api/auth/instagram"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary/90 transition-all shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <InstagramIcon className="size-4 shrink-0" />
+                  <span>{isExpired ? "RECONNECT INSTAGRAM" : "CONNECT INSTAGRAM"}</span>
+                </a>
+              ) : (
+                <Button disabled variant="outline" className="gap-2 text-xs">
+                  <ShieldAlert className="size-3.5" />
+                  <span>Owner Permission Required</span>
+                </Button>
+              )}
+              <span className="text-[10px] font-mono text-muted-foreground">
+                Official Meta OAuth Authorization
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Account Card */}
-        <div className="rounded-xl border border-border bg-card p-5 space-y-2">
-          <span className="eyebrow block text-[10px]">ACCOUNT</span>
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-foreground font-mono">
-              @barbod.barber.hu
-            </h3>
-            <a
-              href="https://www.instagram.com/barbod.barber.hu"
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-primary hover:underline flex items-center gap-1 font-mono"
-            >
-              <span>View Profile</span>
-              <ExternalLink className="size-3" />
-            </a>
+        {/* Overview Stats */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-border/80 bg-muted/40 p-4 space-y-1">
+            <span className="eyebrow block text-[10px]">AUTHORIZED USER</span>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold font-mono text-foreground">
+                @{accountName}
+              </span>
+              <a
+                href={`https://www.instagram.com/${accountName}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-primary hover:underline flex items-center gap-1 font-mono"
+              >
+                <ExternalLink className="size-3" />
+              </a>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground font-light">
-            Professional Account (Business or Creator)
-          </p>
-        </div>
 
-        {/* Cache Card */}
-        <div className="rounded-xl border border-border bg-card p-5 space-y-2">
-          <span className="eyebrow block text-[10px]">LAST SYNCED</span>
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-foreground font-mono text-sm">
-              {new Date(feed.lastSynced).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </h3>
-            <span className="text-xs text-muted-foreground font-mono">
-              {feed.data.length} Posts
-            </span>
+          <div className="rounded-lg border border-border/80 bg-muted/40 p-4 space-y-1">
+            <span className="eyebrow block text-[10px]">MEDIA STATUS</span>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold font-mono text-foreground">
+                {feed.data.length} Posts Synced
+              </span>
+              {feed.isFallback ? (
+                <span className="text-[10px] font-mono text-amber-500 font-bold">FALLBACK MODE</span>
+              ) : (
+                <span className="text-[10px] font-mono text-emerald-500 font-bold">LIVE API</span>
+              )}
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground font-light">
-            Automatic 1-hour server-side revalidation cache.
-          </p>
+
+          <div className="rounded-lg border border-border/80 bg-muted/40 p-4 space-y-1">
+            <span className="eyebrow block text-[10px]">LAST SYNCED</span>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold font-mono text-foreground">
+                {new Date(feed.lastSynced).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground">1hr Server Cache</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* 3. Media Grid Showcase */}
       <div className="space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-3">
-          <h3 className="text-lg font-serif font-semibold text-foreground">
-            Synced Media Posts ({feed.data.length})
+          <h3 className="text-lg font-serif font-semibold text-foreground flex items-center gap-2">
+            <span>Displayed Media Posts ({feed.data.length})</span>
+            {feed.isFallback && (
+              <Badge variant="warning" className="text-[10px]">
+                Fallback Content
+              </Badge>
+            )}
           </h3>
           <span className="text-xs font-mono text-muted-foreground">
-            Displayed on Homepage
+            Homepage &quot;From the Atelier&quot;
           </span>
         </div>
 
@@ -158,7 +256,7 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
           {feed.data.map((item) => (
             <div
               key={item.id}
-              className="rounded-xl border border-border bg-card p-4 flex flex-col justify-between space-y-4 shadow-sm"
+              className="rounded-xl border border-border bg-card p-4 flex flex-col justify-between space-y-4 shadow-xs"
             >
               <div className="space-y-3">
                 <div className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted">
@@ -176,7 +274,7 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
 
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs font-mono text-muted-foreground">
-                    <span>@{item.username || "barbod.barber.hu"}</span>
+                    <span>@{item.username || accountName}</span>
                     <span>{new Date(item.timestamp).toLocaleDateString()}</span>
                   </div>
                   <p className="text-xs text-foreground/90 font-light line-clamp-2 leading-relaxed">
@@ -204,34 +302,40 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
         </div>
       </div>
 
-      {/* 4. Credentials Setup Guide */}
+      {/* 4. Meta Developer Configuration Guide */}
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Key className="size-4 text-primary" />
-          <span>Meta / Instagram API Configuration Guide (Instagram Platform API with Instagram Login)</span>
+          <span>Meta Developer Setup & OAuth Architecture</span>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          To connect your live <strong className="text-foreground">@barbod.barber.hu</strong> Professional Instagram account (Business or Creator), add the access token to Vercel and your <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">.env.local</code> file:
+          For the owner to connect live Instagram data, configure the Meta App settings in Vercel and <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">.env.local</code>:
         </p>
+
         <div className="bg-muted p-4 rounded-lg font-mono text-xs text-foreground space-y-1 overflow-x-auto">
-          <div><span className="text-muted-foreground"># Server-only Instagram User Access Token (Instagram Platform API)</span></div>
-          <div>INSTAGRAM_ACCESS_TOKEN=IGQJ...</div>
+          <div><span className="text-muted-foreground"># Meta / Instagram OAuth Application Credentials</span></div>
+          <div>INSTAGRAM_APP_ID=your_meta_app_id</div>
+          <div>INSTAGRAM_APP_SECRET=your_meta_app_secret</div>
+          <div className="pt-2"><span className="text-muted-foreground"># Server-Only Token Encryption Secret (32-byte fallback via SUPABASE_SERVICE_ROLE_KEY)</span></div>
+          <div>INSTAGRAM_ENCRYPTION_SECRET=your_random_32_character_secret</div>
         </div>
-        <div className="text-xs text-muted-foreground space-y-2">
-          <p><strong>Setup & Authentication Requirements:</strong></p>
-          <ul className="list-disc list-inside space-y-1 pl-1">
-            <li><strong>Account Type:</strong> Instagram Professional Account (Business or Creator). Personal accounts are not supported.</li>
-            <li><strong>Auth Method:</strong> Instagram API with Instagram Login.</li>
-            <li><strong>Minimal Permission:</strong> <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">instagram_business_basic</code> (read profile & media).</li>
-            <li><strong>Endpoint Used:</strong> <code className="font-mono text-foreground">https://graph.instagram.com/v22.0/me/media</code></li>
-          </ul>
-          <p className="pt-2"><strong>Steps to obtain Access Token:</strong></p>
-          <ol className="list-decimal list-inside space-y-1 pl-1">
-            <li>Log into <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-primary underline">developers.facebook.com</a> and create a Meta App.</li>
-            <li>Add product: <strong>Instagram Platform API</strong> (Instagram Login for Business/Creator).</li>
-            <li>Authorize @barbod.barber.hu with permission <code className="font-mono text-primary">instagram_business_basic</code>.</li>
-            <li>Generate a long-lived Access Token.</li>
-            <li>Set <code className="font-mono text-primary">INSTAGRAM_ACCESS_TOKEN</code> in Vercel project settings under Environment Variables.</li>
+
+        <div className="text-xs text-muted-foreground space-y-2 pt-2">
+          <p className="font-semibold text-foreground flex items-center gap-1.5">
+            <Sparkles className="size-3.5 text-primary" />
+            Meta Developer App Setup Checklist:
+          </p>
+          <ol className="list-decimal list-inside space-y-1 pl-1 leading-relaxed">
+            <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-primary underline">developers.facebook.com</a> and select your Meta App.</li>
+            <li>Add product: <strong>Instagram Platform API</strong> (Instagram Login).</li>
+            <li>In Instagram Settings, add the exact OAuth Redirect URI:
+              <br />
+              <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded ml-4 inline-block my-1">
+                https://barbod-gold.vercel.app/api/auth/instagram/callback
+              </code>
+            </li>
+            <li>Request minimal permission: <code className="font-mono text-primary">instagram_business_basic</code>.</li>
+            <li>Save App ID into <code className="font-mono text-primary">INSTAGRAM_APP_ID</code> and App Secret into <code className="font-mono text-primary">INSTAGRAM_APP_SECRET</code> in Vercel settings.</li>
           </ol>
         </div>
       </div>

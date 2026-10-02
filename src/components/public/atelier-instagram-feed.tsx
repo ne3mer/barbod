@@ -95,7 +95,7 @@ export function AtelierInstagramFeed({ items }: AtelierInstagramFeedProps) {
               {isReel && (
                 <div className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/70 backdrop-blur-md px-3 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-primary shadow-lg">
                   <Play className="size-3 fill-primary text-primary" />
-                  <span>REEL {item.reel_duration ? `/ ${item.reel_duration}` : ""}</span>
+                  <span>REEL</span>
                 </div>
               )}
 

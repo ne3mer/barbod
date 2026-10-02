@@ -3,12 +3,12 @@ import { fetchInstagramFeed } from "@/lib/instagram/client";
 import { InstagramManager } from "@/components/admin/instagram-manager";
 
 export const metadata = {
-  title: "Instagram Feed | Barbod Admin",
+  title: "Instagram Connection | Barbod Admin",
 };
 
 export default async function AdminInstagramPage() {
-  await requireAdminContext();
-  const feed = await fetchInstagramFeed();
+  const context = await requireAdminContext();
+  const feed = await fetchInstagramFeed(false, context.business.id);
 
-  return <InstagramManager feed={feed} />;
+  return <InstagramManager feed={feed} userRole={context.role} />;
 }

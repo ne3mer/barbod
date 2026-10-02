@@ -1,5 +1,11 @@
 export type InstagramMediaType = "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
 
+export type InstagramConnectionStatus =
+  | "CONNECTED"
+  | "NOT_CONNECTED"
+  | "EXPIRED"
+  | "ERROR";
+
 export interface InstagramMediaItem {
   id: string;
   caption?: string;
@@ -10,7 +16,6 @@ export interface InstagramMediaItem {
   timestamp: string;
   username?: string;
   is_reel?: boolean;
-  reel_duration?: string;
   is_pinned?: boolean;
   is_hidden?: boolean;
 }
@@ -18,6 +23,13 @@ export interface InstagramMediaItem {
 export interface InstagramFeedResponse {
   data: InstagramMediaItem[];
   isFallback: boolean;
+  connectionStatus: InstagramConnectionStatus;
+  connectedAccount?: {
+    username: string;
+    instagramUserId: string;
+    connectedAt: string;
+    expiresAt?: string;
+  };
   lastSynced: string;
   error?: string;
 }
