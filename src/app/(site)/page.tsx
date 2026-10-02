@@ -5,6 +5,7 @@ import {
   getPublicWorkingHours,
   getPublicBarbers,
 } from "@/lib/public/business";
+import { fetchInstagramFeed } from "@/lib/instagram/client";
 import { PublicHome } from "@/components/public/public-home";
 
 export const metadata = {
@@ -33,11 +34,12 @@ export default async function HomePage() {
     );
   }
 
-  const [barbers, services, portfolio, workingHours] = await Promise.all([
+  const [barbers, services, portfolio, workingHours, instagramFeed] = await Promise.all([
     getPublicBarbers(business.id),
     getPublicServices(business.id),
     getPublicPortfolio(business.id),
     getPublicWorkingHours(business.id),
+    fetchInstagramFeed(),
   ]);
 
   return (
@@ -47,6 +49,7 @@ export default async function HomePage() {
       services={services}
       portfolio={portfolio}
       workingHours={workingHours}
+      instagramItems={instagramFeed.data}
     />
   );
 }

@@ -22,6 +22,8 @@ import type {
   PublicPortfolioItem,
   PublicWorkingHours,
 } from "@/lib/public/business";
+import type { InstagramMediaItem } from "@/lib/instagram/types";
+import { AtelierInstagramFeed } from "@/components/public/atelier-instagram-feed";
 import { useLanguage } from "@/lib/i18n/context";
 import { getLocalizedField } from "@/lib/i18n/translations";
 import { createClient } from "@/lib/supabase/client";
@@ -34,6 +36,7 @@ interface PublicHomeProps {
   services: PublicService[];
   portfolio: PublicPortfolioItem[];
   workingHours: PublicWorkingHours[];
+  instagramItems?: InstagramMediaItem[];
 }
 
 const DAY_NAMES: Record<number, { en: string; hu: string }> = {
@@ -54,6 +57,7 @@ export function PublicHome({
   services,
   portfolio,
   workingHours,
+  instagramItems = [],
 }: PublicHomeProps) {
   const { lang, t } = useLanguage();
   const [selectedBarberFilter, setSelectedBarberFilter] = React.useState<string>("all");
@@ -553,6 +557,9 @@ export function PublicHome({
           </div>
         </div>
       </section>
+
+      {/* 5.5 FROM THE ATELIER - INSTAGRAM FEED */}
+      <AtelierInstagramFeed items={instagramItems} />
 
       {/* 6. Final Editorial Booking CTA */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 w-full min-w-0">

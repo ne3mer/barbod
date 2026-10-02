@@ -25,6 +25,7 @@ import {
 import { signOutAction } from "@/app/admin/(dashboard)/actions";
 import { Button } from "@/components/ui/button";
 import { cn } from "cn";
+import { InstagramIcon } from "@/components/ui/icons";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -48,6 +49,7 @@ const OWNER_NAV_ITEMS: NavItem[] = [
   { href: "/admin/working-hours", label: "Working Hours", icon: Clock },
   { href: "/admin/blocked-times", label: "Blocked Times", icon: Ban },
   { href: "/admin/portfolio", label: "Portfolio", icon: ImageIcon },
+  { href: "/admin/instagram", label: "Instagram", icon: InstagramIcon },
   { href: "/admin/notifications", label: "Email Logs", icon: Mail },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
