@@ -13,6 +13,8 @@ import {
   ArrowRight,
   ArrowLeft,
   Loader2,
+  Scissors,
+  Check,
 } from "lucide-react";
 
 import type { PublicBusiness, PublicBarber, PublicService } from "@/lib/public/business";
@@ -91,7 +93,7 @@ export function BookingFlow({
   );
   const [selectedSlot, setSelectedSlot] = React.useState<AvailableSlot | null>(null);
 
-  // Customer Form State
+  // Customer Form State (Preserved across back navigation)
   const [customerName, setCustomerName] = React.useState("");
   const [customerPhone, setCustomerPhone] = React.useState("");
   const [customerEmail, setCustomerEmail] = React.useState("");
@@ -110,7 +112,6 @@ export function BookingFlow({
   const availableServicesForBarber = React.useMemo(() => {
     if (!selectedBarber) return [];
     const assignedIds = barberServicesMap[selectedBarber.id] || [];
-    // If no explicit mapping exists, fall back to all active services for primary/only barber
     if (assignedIds.length === 0 && barbers.length === 1) {
       return services;
     }
@@ -152,7 +153,6 @@ export function BookingFlow({
 
   const handleSelectBarber = (barber: PublicBarber) => {
     setSelectedBarber(barber);
-    // Reset service if it's not offered by the newly selected barber
     if (selectedService) {
       const assignedIds = barberServicesMap[barber.id] || [];
       if (assignedIds.length > 0 && !assignedIds.includes(selectedService.id)) {
@@ -228,20 +228,20 @@ export function BookingFlow({
 
   const todayStr = new Date().toISOString().split("T")[0];
 
-  const stepLabels = [
-    { num: 1, label: lang === "hu" ? "01 BORBÉLY" : "01 BARBER" },
-    { num: 2, label: lang === "hu" ? "02 SZOLGÁLTATÁS" : "02 SERVICE" },
-    { num: 3, label: lang === "hu" ? "03 DÁTUM ÉS IDŐ" : "03 DATE & TIME" },
-    { num: 4, label: lang === "hu" ? "04 ADATOK" : "04 DETAILS" },
-    { num: 5, label: lang === "hu" ? "05 ÖSSZEGZÉS" : "05 REVIEW" },
+  const stepTitles = [
+    lang === "hu" ? "Borbély kiválasztása" : "Choose Barber",
+    lang === "hu" ? "Szolgáltatás" : "Select Service",
+    lang === "hu" ? "Dátum és Idő" : "Date & Time",
+    lang === "hu" ? "Személyes adat" : "Your Details",
+    lang === "hu" ? "Foglalás összegezése" : "Review Booking",
   ];
 
   return (
-    <div className="mx-auto max-w-4xl w-full px-4 py-8 sm:px-6 sm:py-16 space-y-10">
-      {/* 1. Minimal Header */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-6">
+    <div className="mx-auto max-w-4xl w-full px-4 py-6 sm:px-6 sm:py-12 space-y-6 sm:space-y-10">
+      {/* 1. Header */}
+      <div className="flex items-center justify-between border-b border-white/10 pb-4 sm:pb-6">
         <div className="flex flex-col">
-          <span className="font-serif tracking-[0.2em] uppercase text-lg font-medium text-foreground leading-none">
+          <span className="font-serif tracking-[0.2em] uppercase text-base sm:text-lg font-medium text-foreground leading-none">
             BARBOD
           </span>
           <span className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground font-sans mt-1">
@@ -251,43 +251,65 @@ export function BookingFlow({
 
         <Link
           href="/"
-          className="text-xs uppercase tracking-widest font-semibold text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5"
+          className="text-xs uppercase tracking-widest font-semibold text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5 py-1 px-2.5 rounded-md hover:bg-white/5"
         >
           <ArrowLeft className="size-3.5" />
-          <span>{lang === "hu" ? "VISSZA A WEBOLDALRA" : "RETURN TO WEBSITE"}</span>
+          <span className="hidden xs:inline">{lang === "hu" ? "Vissza a weboldalra" : "Return to website"}</span>
+          <span className="xs:hidden">{lang === "hu" ? "Vissza" : "Back"}</span>
         </Link>
       </div>
 
-      {/* 2. Refined Editorial Progress Indicator */}
+      {/* 2. Responsive Progress Indicator */}
       {step < 6 && (
-        <div className="grid grid-cols-5 gap-1.5 border-b border-white/10 pb-4">
-          {stepLabels.map((s) => {
-            const isActive = step === s.num;
-            const isCompleted = step > s.num;
+        <div className="space-y-3 border-b border-white/10 pb-4">
+          {/* Mobile Step Header (<640px) */}
+          <div className="sm:hidden flex items-center justify-between">
+            <span className="text-xs font-mono font-semibold uppercase tracking-wider text-primary">
+              {lang === "hu" ? `0${step} / 05 LÉPÉS` : `STEP 0${step} OF 05`}
+            </span>
+            <span className="text-xs font-serif font-medium text-foreground">
+              {stepTitles[step - 1]}
+            </span>
+          </div>
 
-            return (
-              <div
-                key={s.num}
-                className={`text-center py-2 transition-all ${
-                  isActive
-                    ? "border-b-2 border-primary text-primary font-bold"
-                    : isCompleted
-                    ? "text-foreground/80 font-medium"
-                    : "text-muted-foreground/40 font-normal"
-                }`}
-              >
-                <span className="text-[10px] sm:text-xs tracking-wider uppercase font-mono block truncate">
-                  {s.label}
-                </span>
-              </div>
-            );
-          })}
+          {/* Visual Progress Line (Mobile & Desktop) */}
+          <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden flex">
+            <div
+              className="h-full bg-primary transition-all duration-300 ease-out"
+              style={{ width: `${(step / 5) * 100}%` }}
+            />
+          </div>
+
+          {/* Desktop Step Labels (>=640px) */}
+          <div className="hidden sm:grid grid-cols-5 gap-1.5 pt-1">
+            {[1, 2, 3, 4, 5].map((sNum) => {
+              const isActive = step === sNum;
+              const isCompleted = step > sNum;
+
+              return (
+                <div
+                  key={sNum}
+                  className={`text-center py-1 transition-all ${
+                    isActive
+                      ? "text-primary font-bold border-b-2 border-primary"
+                      : isCompleted
+                      ? "text-foreground/80 font-medium"
+                      : "text-muted-foreground/40 font-normal"
+                  }`}
+                >
+                  <span className="text-[10px] tracking-wider uppercase font-mono block truncate">
+                    0{sNum}. {stepTitles[sNum - 1]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* Error Alert Banner */}
+      {/* Contextual Error Alert */}
       {errorMsg && (
-        <div className="flex items-center gap-3 rounded-sm bg-destructive/15 p-4 text-xs font-medium text-destructive border border-destructive/30 animate-in fade-in">
+        <div className="flex items-center gap-3 rounded-md bg-destructive/15 p-4 text-xs sm:text-sm font-medium text-destructive border border-destructive/30 animate-in fade-in">
           <AlertCircle className="size-4 shrink-0 text-destructive" />
           <span>{errorMsg}</span>
         </div>
@@ -295,15 +317,15 @@ export function BookingFlow({
 
       {/* STEP 1: CHOOSE BARBER */}
       {step === 1 && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           <div className="space-y-1">
             <span className="eyebrow">{lang === "hu" ? "1. LÉPÉS" : "STEP 01"}</span>
-            <h2 className="text-3xl font-normal text-foreground font-serif">
+            <h2 className="text-2xl sm:text-3xl font-normal text-foreground font-serif">
               {lang === "hu" ? "Válasszon borbélyt" : "Choose Your Barber"}
             </h2>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2">
             {barbers.map((barber) => {
               const bio = getLocalizedField(barber, "bio", lang);
               const isSelected = selectedBarber?.id === barber.id;
@@ -312,14 +334,14 @@ export function BookingFlow({
                 <div
                   key={barber.id}
                   onClick={() => handleSelectBarber(barber)}
-                  className={`group relative rounded-sm border p-6 cursor-pointer transition-all duration-300 ${
+                  className={`group relative rounded-lg border p-5 sm:p-6 cursor-pointer transition-all duration-200 active:scale-[0.99] ${
                     isSelected
-                      ? "border-primary bg-primary/10 shadow-lg"
+                      ? "border-primary bg-primary/10 shadow-lg ring-1 ring-primary"
                       : "border-white/10 bg-card hover:border-primary/50 hover:bg-white/[0.02]"
                   }`}
                 >
                   <div className="flex items-start gap-4">
-                    <div className="relative size-16 shrink-0 rounded-full overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center">
+                    <div className="relative size-14 sm:size-16 shrink-0 rounded-full overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center">
                       {barber.profile_photo_url ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
@@ -328,13 +350,13 @@ export function BookingFlow({
                           className="size-full object-cover"
                         />
                       ) : (
-                        <User className="size-8 text-primary/70" />
+                        <User className="size-7 text-primary/70" />
                       )}
                     </div>
 
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-normal font-serif text-foreground group-hover:text-primary transition-colors">
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-lg sm:text-xl font-normal font-serif text-foreground group-hover:text-primary transition-colors truncate">
                           {barber.name}
                         </h3>
                         {isSelected && (
@@ -342,17 +364,21 @@ export function BookingFlow({
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground font-light line-clamp-3 leading-relaxed">
-                        {bio || (lang === "hu" ? "Tapasztalt férfi fodrász és borbély." : "Master barber specializing in traditional cuts & precision styling.")}
+                        {bio || (lang === "hu" ? "Tapasztalt borbély és mesterfodrász." : "Master barber specializing in classic & precision cuts.")}
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground font-mono">
+                  <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground font-mono text-[11px]">
                       {lang === "hu" ? "ELÉRHETŐ" : "AVAILABLE"}
                     </span>
-                    <Button size="xs" variant={isSelected ? "default" : "outline"}>
-                      {lang === "hu" ? "Borbély kiválasztása" : "Select Barber"}
+                    <Button
+                      size="sm"
+                      variant={isSelected ? "default" : "outline"}
+                      className="min-h-[40px] px-4 font-semibold text-xs uppercase tracking-wider"
+                    >
+                      {lang === "hu" ? "Kiválasztás" : "Select"}
                     </Button>
                   </div>
                 </div>
@@ -364,9 +390,9 @@ export function BookingFlow({
 
       {/* STEP 2: SELECT SERVICE */}
       {step === 2 && selectedBarber && (
-        <div className="space-y-8">
-          {/* Selected Barber Bar */}
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="space-y-6">
+          {/* Selected Barber Banner */}
+          <div className="flex items-center justify-between rounded-lg border border-white/10 bg-card/60 p-4">
             <div className="flex items-center gap-3">
               <div className="size-10 rounded-full overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center">
                 {selectedBarber.profile_photo_url ? (
@@ -377,8 +403,8 @@ export function BookingFlow({
                 )}
               </div>
               <div>
-                <span className="eyebrow">{lang === "hu" ? "KIVÁLASZTOTT BORBÉLY" : "SELECTED BARBER"}</span>
-                <h3 className="text-lg font-normal text-foreground font-serif">
+                <span className="eyebrow block text-[10px]">{lang === "hu" ? "BORBÉLY" : "BARBER"}</span>
+                <h3 className="text-base font-serif text-foreground font-medium">
                   {selectedBarber.name}
                 </h3>
               </div>
@@ -386,18 +412,18 @@ export function BookingFlow({
 
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={() => setStep(1)}
-              className="gap-1.5 text-xs text-muted-foreground hover:text-primary"
+              className="gap-1 text-xs text-muted-foreground hover:text-primary min-h-[36px]"
             >
               <ArrowLeft className="size-3.5" />
-              <span>{lang === "hu" ? "MÁSIK BORBÉLY" : "CHANGE BARBER"}</span>
+              <span>{lang === "hu" ? "Módosít" : "Change"}</span>
             </Button>
           </div>
 
           <div className="space-y-1">
             <span className="eyebrow">{lang === "hu" ? "2. LÉPÉS" : "STEP 02"}</span>
-            <h2 className="text-3xl font-normal text-foreground font-serif">
+            <h2 className="text-2xl sm:text-3xl font-normal text-foreground font-serif">
               {t.step1Title}
             </h2>
           </div>
@@ -405,7 +431,7 @@ export function BookingFlow({
           <div className="divide-y divide-white/10 border-t border-b border-white/10">
             {availableServicesForBarber.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground font-light">
-                {lang === "hu" ? "Nincs elérhető szolgáltatás ehhez a borbélyhoz." : "No services configured for this barber yet."}
+                {lang === "hu" ? "Nincs elérhető szolgáltatás ehhez a borbélyhoz." : "No services available for this barber."}
               </div>
             ) : (
               availableServicesForBarber.map((svc, idx) => {
@@ -421,19 +447,19 @@ export function BookingFlow({
                   <div
                     key={svc.id}
                     onClick={() => handleSelectService(svc)}
-                    className={`group flex flex-col md:flex-row md:items-center justify-between gap-6 py-6 px-4 cursor-pointer transition-all duration-200 ${
+                    className={`group flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-5 px-3 sm:px-4 cursor-pointer transition-all duration-200 ${
                       isSelected
-                        ? "bg-primary/10 border-l-2 border-primary"
+                        ? "bg-primary/10 border-l-4 border-primary"
                         : "hover:bg-white/[0.02]"
                     }`}
                   >
-                    <div className="flex items-start gap-6">
-                      <span className="font-mono text-sm font-semibold text-primary/70 pt-1 shrink-0">
+                    <div className="flex items-start gap-4">
+                      <span className="font-mono text-xs font-semibold text-primary/70 pt-1 shrink-0">
                         {indexStr}
                       </span>
 
                       <div className="space-y-1 max-w-lg">
-                        <h3 className="text-xl font-normal text-foreground font-serif group-hover:text-primary transition-colors">
+                        <h3 className="text-lg sm:text-xl font-normal text-foreground font-serif group-hover:text-primary transition-colors">
                           {name}
                         </h3>
                         <p className="text-xs text-muted-foreground leading-relaxed font-light">
@@ -442,8 +468,8 @@ export function BookingFlow({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between md:justify-end gap-6 pt-2 md:pt-0">
-                      <div className="text-left md:text-right">
+                    <div className="flex items-center justify-between sm:justify-end gap-4 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5">
+                      <div className="text-left sm:text-right">
                         <div className="text-xs font-mono text-muted-foreground">
                           {svc.duration_minutes} {t.duration}
                         </div>
@@ -452,7 +478,11 @@ export function BookingFlow({
                         </div>
                       </div>
 
-                      <Button size="xs" variant={isSelected ? "default" : "outline"}>
+                      <Button
+                        size="sm"
+                        variant={isSelected ? "default" : "outline"}
+                        className="min-h-[44px] px-5 text-xs font-semibold uppercase tracking-wider shrink-0"
+                      >
                         {t.nextStep}
                       </Button>
                     </div>
@@ -466,38 +496,38 @@ export function BookingFlow({
 
       {/* STEP 3: SELECT DATE & TIME SLOT */}
       {step === 3 && selectedBarber && selectedService && (
-        <div className="space-y-8">
-          {/* Summary Header */}
-          <div className="flex flex-wrap items-center justify-between border-b border-white/10 pb-4 gap-4">
-            <div className="flex items-center gap-6">
+        <div className="space-y-6">
+          {/* Summary Banner */}
+          <div className="flex flex-wrap items-center justify-between rounded-lg border border-white/10 bg-card/60 p-4 gap-3">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <div>
-                <span className="eyebrow">{lang === "hu" ? "BORBÉLY" : "BARBER"}</span>
+                <span className="eyebrow block text-[10px]">{lang === "hu" ? "BORBÉLY" : "BARBER"}</span>
                 <p className="text-sm font-serif text-foreground font-medium">{selectedBarber.name}</p>
               </div>
-              <div className="h-6 w-px bg-white/10" />
+              <div className="hidden sm:block h-6 w-px bg-white/10" />
               <div>
-                <span className="eyebrow">{t.selectedServiceLabel}</span>
+                <span className="eyebrow block text-[10px]">{t.selectedServiceLabel}</span>
                 <p className="text-sm font-serif text-foreground font-medium">
-                  {getLocalizedField(selectedService, "name", lang)}
+                  {getLocalizedField(selectedService, "name", lang)} ({selectedService.duration_minutes}m)
                 </p>
               </div>
             </div>
 
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={() => setStep(2)}
-              className="gap-1.5 text-xs text-muted-foreground hover:text-primary"
+              className="gap-1 text-xs text-muted-foreground hover:text-primary min-h-[36px]"
             >
               <ArrowLeft className="size-3.5" />
               <span>{t.changeService}</span>
             </Button>
           </div>
 
-          <div className="grid gap-10 lg:grid-cols-2">
+          <div className="grid gap-8 lg:grid-cols-2">
             {/* Date Selector */}
             <div className="space-y-4">
-              <h2 className="text-2xl font-normal text-foreground font-serif">
+              <h2 className="text-xl sm:text-2xl font-normal text-foreground font-serif">
                 {t.step2Title}
               </h2>
 
@@ -511,32 +541,32 @@ export function BookingFlow({
                   min={todayStr}
                   value={selectedDate}
                   onChange={handleDateChange}
-                  className="w-full text-sm font-mono h-12 bg-card/90 border-white/10"
+                  className="w-full text-base font-mono h-12 bg-card/90 border-white/15 focus:border-primary px-3 rounded-lg"
                 />
               </div>
             </div>
 
             {/* Time Slot Picker */}
             <div className="space-y-4">
-              <h2 className="text-2xl font-normal text-foreground font-serif">
+              <h2 className="text-xl sm:text-2xl font-normal text-foreground font-serif">
                 {t.step3Title}
               </h2>
 
               {loadingSlots ? (
-                <div className="flex items-center justify-center p-12 border border-white/10 rounded-sm bg-card/60">
+                <div className="flex items-center justify-center p-12 border border-white/10 rounded-lg bg-card/60">
                   <Loader2 className="size-5 animate-spin text-primary mr-2" />
                   <span className="text-xs text-muted-foreground font-mono">
                     {t.loadingSlots}
                   </span>
                 </div>
               ) : availableSlots.length === 0 ? (
-                <div className="p-12 border border-dashed border-white/10 rounded-sm text-center bg-card/40">
-                  <p className="text-xs text-muted-foreground font-light">
+                <div className="p-10 border border-dashed border-white/15 rounded-lg text-center bg-card/40">
+                  <p className="text-xs sm:text-sm text-muted-foreground font-light">
                     {t.noSlotsAvailable}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2.5 max-h-[320px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
                   {availableSlots.map((slot) => {
                     const isSelected = selectedSlot?.timeStr === slot.timeStr;
                     return (
@@ -544,13 +574,14 @@ export function BookingFlow({
                         key={slot.timeStr}
                         type="button"
                         onClick={() => handleSelectSlot(slot)}
-                        className={`rounded-sm border px-3 py-3 text-xs font-mono font-semibold transition-all ${
+                        className={`min-h-[48px] rounded-lg border px-3 py-2 text-sm font-mono font-semibold transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
                           isSelected
-                            ? "border-primary bg-primary text-primary-foreground shadow-xs"
+                            ? "border-primary bg-primary text-primary-foreground shadow-md font-bold ring-2 ring-primary/40"
                             : "border-white/10 bg-card text-foreground hover:border-primary/60 hover:bg-white/[0.04]"
                         }`}
                       >
-                        {slot.formattedTime}
+                        <span>{slot.formattedTime}</span>
+                        {isSelected && <Check className="size-4 shrink-0" />}
                       </button>
                     );
                   })}
@@ -559,8 +590,12 @@ export function BookingFlow({
             </div>
           </div>
 
-          <div className="flex justify-between pt-6 border-t border-white/10">
-            <Button variant="outline" onClick={() => setStep(2)} className="gap-2">
+          <div className="flex items-center justify-between pt-6 border-t border-white/10 gap-4">
+            <Button
+              variant="outline"
+              onClick={() => setStep(2)}
+              className="gap-2 min-h-[48px] px-6 text-xs uppercase tracking-wider"
+            >
               <ArrowLeft className="size-4" />
               <span>{t.prevStep}</span>
             </Button>
@@ -568,7 +603,7 @@ export function BookingFlow({
             <Button
               onClick={() => setStep(4)}
               disabled={!selectedSlot}
-              className="gap-2 px-8"
+              className="gap-2 min-h-[48px] px-8 text-xs font-semibold uppercase tracking-wider shadow-md"
             >
               <span>{t.nextStep}</span>
               <ArrowRight className="size-4" />
@@ -579,10 +614,10 @@ export function BookingFlow({
 
       {/* STEP 4: CUSTOMER DETAILS */}
       {step === 4 && (
-        <form onSubmit={handleDetailsNext} className="space-y-8">
+        <form onSubmit={handleDetailsNext} className="space-y-6 sm:space-y-8">
           <div className="space-y-1">
             <span className="eyebrow">{lang === "hu" ? "4. LÉPÉS" : "STEP 04"}</span>
-            <h2 className="text-2xl font-normal text-foreground font-serif">
+            <h2 className="text-2xl sm:text-3xl font-normal text-foreground font-serif">
               {t.step4Title}
             </h2>
           </div>
@@ -597,7 +632,7 @@ export function BookingFlow({
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder={t.fullNamePlaceholder}
-                className="h-12 bg-card/90 border-white/10"
+                className="h-12 text-base bg-card/90 border-white/15 rounded-lg"
                 required
               />
             </div>
@@ -608,10 +643,11 @@ export function BookingFlow({
               </Label>
               <Input
                 id="cust_phone"
+                type="tel"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 placeholder={t.phonePlaceholder}
-                className="h-12 bg-card/90 border-white/10"
+                className="h-12 text-base bg-card/90 border-white/15 rounded-lg"
                 required
               />
             </div>
@@ -627,7 +663,7 @@ export function BookingFlow({
               value={customerEmail}
               onChange={(e) => setCustomerEmail(e.target.value)}
               placeholder={t.emailPlaceholder}
-              className="h-12 bg-card/90 border-white/10"
+              className="h-12 text-base bg-card/90 border-white/15 rounded-lg"
             />
           </div>
 
@@ -640,23 +676,26 @@ export function BookingFlow({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={t.notesPlaceholder}
-              className="bg-card/90 border-white/10 rounded-sm focus:border-primary p-3"
+              className="bg-card/90 border-white/15 rounded-lg focus:border-primary p-3 text-base sm:text-sm"
               rows={3}
             />
           </div>
 
-          <div className="flex justify-between pt-6 border-t border-white/10">
+          <div className="flex items-center justify-between pt-6 border-t border-white/10 gap-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => setStep(3)}
-              className="gap-2"
+              className="gap-2 min-h-[48px] px-6 text-xs uppercase tracking-wider"
             >
               <ArrowLeft className="size-4" />
               <span>{t.prevStep}</span>
             </Button>
 
-            <Button type="submit" className="gap-2 px-8">
+            <Button
+              type="submit"
+              className="gap-2 min-h-[48px] px-8 text-xs font-semibold uppercase tracking-wider shadow-md"
+            >
               <span>{t.nextStep}</span>
               <ArrowRight className="size-4" />
             </Button>
@@ -666,65 +705,69 @@ export function BookingFlow({
 
       {/* STEP 5: REVIEW & CONFIRM */}
       {step === 5 && selectedBarber && selectedService && selectedSlot && (
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           <div className="space-y-1">
             <span className="eyebrow">{lang === "hu" ? "5. LÉPÉS" : "STEP 05"}</span>
-            <h2 className="text-2xl font-normal text-foreground font-serif">
+            <h2 className="text-2xl sm:text-3xl font-normal text-foreground font-serif">
               {t.step5Title}
             </h2>
           </div>
 
           {/* Ticket-Style Summary Receipt */}
-          <div className="rounded-sm border border-white/10 bg-card p-6 sm:p-8 space-y-6 shadow-xl">
-            <div className="border-b border-white/10 pb-5 flex items-center justify-between">
+          <div className="rounded-xl border border-white/15 bg-card p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+              <Scissors className="size-24 text-primary" />
+            </div>
+
+            <div className="border-b border-white/10 pb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <span className="eyebrow">{t.serviceLabel}</span>
+                <span className="eyebrow text-[10px]">{t.serviceLabel}</span>
                 <h3 className="text-2xl font-normal text-foreground font-serif mt-0.5">
                   {getLocalizedField(selectedService, "name", lang)}
                 </h3>
               </div>
-              <span className="text-xl font-bold font-sans text-primary">
+              <span className="text-2xl font-bold font-sans text-primary">
                 {selectedService.price} {selectedService.currency}
               </span>
             </div>
 
-            <div className="grid gap-6 sm:grid-cols-2 text-sm">
-              <div>
-                <span className="eyebrow block mb-1">{lang === "hu" ? "BORBÉLY" : "BARBER"}</span>
+            <div className="grid gap-5 sm:grid-cols-2 text-sm">
+              <div className="space-y-1">
+                <span className="eyebrow block text-[10px]">{lang === "hu" ? "BORBÉLY" : "BARBER"}</span>
                 <span className="font-serif text-lg font-medium text-foreground flex items-center gap-2">
-                  <User className="size-4 text-primary" />
+                  <User className="size-4 text-primary shrink-0" />
                   {selectedBarber.name}
                 </span>
               </div>
 
-              <div>
-                <span className="eyebrow block mb-1">{t.dateTimeLabel}</span>
+              <div className="space-y-1">
+                <span className="eyebrow block text-[10px]">{t.dateTimeLabel}</span>
                 <span className="font-semibold font-mono text-foreground flex items-center gap-2 text-base">
-                  <CalendarIcon className="size-4 text-primary" />
-                  {selectedDate} {selectedSlot.formattedTime}
+                  <CalendarIcon className="size-4 text-primary shrink-0" />
+                  {selectedDate} · {selectedSlot.formattedTime}
                 </span>
               </div>
 
-              <div>
-                <span className="eyebrow block mb-1">{t.durationLabel}</span>
+              <div className="space-y-1">
+                <span className="eyebrow block text-[10px]">{t.durationLabel}</span>
                 <span className="font-semibold font-mono text-foreground flex items-center gap-2 text-base">
-                  <Clock className="size-4 text-primary" />
+                  <Clock className="size-4 text-primary shrink-0" />
                   {selectedService.duration_minutes} {t.duration}
                 </span>
               </div>
 
-              <div>
-                <span className="eyebrow block mb-1">{t.fullName}</span>
+              <div className="space-y-1">
+                <span className="eyebrow block text-[10px]">{t.fullName}</span>
                 <span className="font-medium text-foreground flex items-center gap-2">
-                  <User className="size-4 text-primary" />
+                  <User className="size-4 text-primary shrink-0" />
                   {customerName}
                 </span>
               </div>
 
-              <div>
-                <span className="eyebrow block mb-1">{t.phoneNumber}</span>
-                <span className="font-medium text-foreground flex items-center gap-2">
-                  <Phone className="size-4 text-primary" />
+              <div className="space-y-1 sm:col-span-2">
+                <span className="eyebrow block text-[10px]">{t.phoneNumber}</span>
+                <span className="font-medium text-foreground flex items-center gap-2 font-mono">
+                  <Phone className="size-4 text-primary shrink-0" />
                   {customerPhone}
                 </span>
               </div>
@@ -732,20 +775,20 @@ export function BookingFlow({
 
             {notes && (
               <div className="border-t border-white/10 pt-4 text-xs">
-                <span className="eyebrow block mb-1">{t.notesLabel}</span>
-                <p className="mt-1 text-foreground bg-white/[0.03] p-3 rounded-sm border border-white/5 font-light">
+                <span className="eyebrow block mb-1 text-[10px]">{t.notesLabel}</span>
+                <p className="mt-1 text-foreground bg-white/[0.03] p-3 rounded-lg border border-white/5 font-light">
                   {notes}
                 </p>
               </div>
             )}
           </div>
 
-          <div className="flex justify-between pt-6 border-t border-white/10">
+          <div className="flex items-center justify-between pt-6 border-t border-white/10 gap-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => setStep(4)}
-              className="gap-2"
+              className="gap-2 min-h-[48px] px-6 text-xs uppercase tracking-wider"
             >
               <ArrowLeft className="size-4" />
               <span>{t.prevStep}</span>
@@ -754,7 +797,7 @@ export function BookingFlow({
             <Button
               onClick={handleConfirmSubmit}
               disabled={submitting}
-              className="gap-2.5 px-10 text-sm uppercase tracking-wider font-semibold shadow-md"
+              className="gap-2.5 min-h-[50px] px-8 sm:px-10 text-xs sm:text-sm uppercase tracking-wider font-semibold shadow-xl"
             >
               {submitting ? (
                 <>
@@ -774,12 +817,12 @@ export function BookingFlow({
 
       {/* STEP 6: SUCCESS SCREEN */}
       {step === 6 && confirmedBooking && (
-        <div className="py-12 space-y-8 text-center max-w-xl mx-auto">
+        <div className="py-8 sm:py-12 space-y-6 sm:space-y-8 text-center max-w-xl mx-auto animate-in fade-in zoom-in-95 duration-300">
           <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="rounded-full bg-emerald-500/10 p-5 text-emerald-500 border border-emerald-500/20">
+            <div className="rounded-full bg-emerald-500/15 p-5 text-emerald-500 border border-emerald-500/30 shadow-lg">
               <CheckCircle2 className="size-12" />
             </div>
-            <Badge variant="warning">{t.statusBadgePending}</Badge>
+            <Badge variant="warning" className="px-3 py-1 text-xs">{t.statusBadgePending}</Badge>
             <h1 className="text-3xl sm:text-4xl font-normal text-foreground font-serif">
               {t.successHeadline}
             </h1>
@@ -788,19 +831,19 @@ export function BookingFlow({
             </p>
           </div>
 
-          <div className="rounded-sm border border-white/10 bg-card p-6 text-left space-y-4 shadow-xl">
-            <h3 className="eyebrow border-b border-white/10 pb-3">
+          <div className="rounded-xl border border-white/15 bg-card p-6 text-left space-y-4 shadow-xl">
+            <h3 className="eyebrow border-b border-white/10 pb-3 text-[11px]">
               {t.bookingDetails}
             </h3>
 
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm py-1 border-b border-white/5">
               <span className="text-muted-foreground">{lang === "hu" ? "Borbély" : "Barber"}:</span>
               <span className="font-serif font-medium text-foreground">
                 {confirmedBooking.barberName}
               </span>
             </div>
 
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm py-1 border-b border-white/5">
               <span className="text-muted-foreground">{t.serviceLabel}:</span>
               <span className="font-serif font-medium text-foreground">
                 {lang === "hu"
@@ -809,31 +852,31 @@ export function BookingFlow({
               </span>
             </div>
 
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm py-1 border-b border-white/5">
               <span className="text-muted-foreground">{t.dateTimeLabel}:</span>
               <span className="font-mono font-semibold text-primary">
-                {confirmedBooking.dateStr} {confirmedBooking.startTimeStr}
+                {confirmedBooking.dateStr} · {confirmedBooking.startTimeStr}
               </span>
             </div>
 
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm py-1 border-b border-white/5">
               <span className="text-muted-foreground">{t.customerLabel}:</span>
               <span className="font-medium text-foreground">
                 {confirmedBooking.customerName}
               </span>
             </div>
 
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm py-1">
               <span className="text-muted-foreground">{t.priceLabel}:</span>
-              <span className="font-bold text-primary font-sans">
+              <span className="font-bold text-primary font-sans text-base">
                 {confirmedBooking.price} {confirmedBooking.currency}
               </span>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
             <Link href="/" className="w-full sm:w-auto">
-              <Button variant="outline" className="w-full sm:w-auto uppercase tracking-wider text-xs">
+              <Button variant="outline" className="w-full sm:w-auto min-h-[48px] uppercase tracking-wider text-xs font-semibold px-6">
                 {t.backToHome}
               </Button>
             </Link>
@@ -849,7 +892,7 @@ export function BookingFlow({
                 setNotes("");
                 setStep(1);
               }}
-              className="w-full sm:w-auto uppercase tracking-wider text-xs font-semibold"
+              className="w-full sm:w-auto min-h-[48px] uppercase tracking-wider text-xs font-semibold px-6"
             >
               {t.bookAnother}
             </Button>

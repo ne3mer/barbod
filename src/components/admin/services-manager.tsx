@@ -48,8 +48,6 @@ export function ServicesManager({
 
   const [isDialogOpen, setIsDialogOpen] = React.useState(initialNewModalOpen);
   const [editingService, setEditingService] = React.useState<Service | null>(null);
-
-  // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = React.useState<Service | null>(null);
 
   // Form states
@@ -135,13 +133,11 @@ export function ServicesManager({
 
   const handleToggleActive = async (svc: Service) => {
     const nextActive = !svc.is_active;
-    // Optimistic UI update
     setServices((prev) =>
       prev.map((s) => (s.id === svc.id ? { ...s, is_active: nextActive } : s))
     );
     const res = await toggleServiceActiveAction(svc.id, nextActive);
     if (res.error) {
-      // Revert on error
       setServices(initialServices);
     }
   };
@@ -173,25 +169,25 @@ export function ServicesManager({
   return (
     <div className="space-y-6">
       {/* Header section */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Services</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground font-serif">Services</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
             Manage your barber services, pricing, durations, and visibility.
           </p>
         </div>
-        <Button onClick={handleOpenCreate} className="gap-2 shrink-0">
+        <Button onClick={handleOpenCreate} className="gap-2 shrink-0 text-xs font-semibold uppercase tracking-wider min-h-[38px] px-4">
           <Plus className="size-4" />
           <span>Add Service</span>
         </Button>
       </div>
 
-      {/* Services Table */}
+      {/* Services List / Cards / Table */}
       {services.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-12 text-center bg-card">
           <Scissors className="size-10 text-muted-foreground mb-3 opacity-60" />
           <h3 className="text-base font-semibold text-foreground">No services found</h3>
-          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+          <p className="text-sm text-muted-foreground mt-1 max-w-sm font-light">
             You haven&apos;t created any services yet. Click below to add your first service.
           </p>
           <Button onClick={handleOpenCreate} variant="outline" className="mt-4 gap-2">
@@ -200,117 +196,137 @@ export function ServicesManager({
           </Button>
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[60px]">Order</TableHead>
-              <TableHead>Service Name</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <>
+          {/* Mobile Card List (<768px) */}
+          <div className="md:hidden space-y-3">
             {services.map((svc, index) => (
-              <TableRow key={svc.id}>
-                {/* Reorder arrows */}
-                <TableCell>
-                  <div className="flex items-center space-x-1">
-                    <button
-                      type="button"
-                      disabled={index === 0}
-                      onClick={() => handleMove(index, "up")}
-                      className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
-                      title="Move up"
-                    >
-                      <ArrowUp className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={index === services.length - 1}
-                      onClick={() => handleMove(index, "down")}
-                      className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
-                      title="Move down"
-                    >
-                      <ArrowDown className="size-3.5" />
-                    </button>
+              <div key={svc.id} className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-serif font-semibold text-foreground">{svc.name_en}</h3>
+                    <p className="text-xs text-muted-foreground">HU: {svc.name_hu}</p>
                   </div>
-                </TableCell>
+                  <Badge variant={svc.is_active ? "success" : "outline"}>
+                    {svc.is_active ? "Active" : "Disabled"}
+                  </Badge>
+                </div>
 
-                {/* Name */}
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span className="font-medium text-foreground">{svc.name_en}</span>
-                    <span className="text-xs text-muted-foreground">
-                      HU: {svc.name_hu}
-                    </span>
-                    {(svc.description_en || svc.description_hu) && (
-                      <span className="text-xs text-muted-foreground/80 line-clamp-1 mt-0.5">
-                        {svc.description_en || svc.description_hu}
-                      </span>
-                    )}
-                  </div>
-                </TableCell>
+                <div className="flex items-center justify-between text-xs font-mono pt-1">
+                  <span className="font-bold text-primary text-sm">
+                    {new Intl.NumberFormat("hu-HU").format(svc.price)} {svc.currency}
+                  </span>
+                  <span className="text-muted-foreground">{svc.duration_minutes} mins</span>
+                </div>
 
-                {/* Price */}
-                <TableCell className="font-medium">
-                  {new Intl.NumberFormat("hu-HU").format(svc.price)} {svc.currency}
-                </TableCell>
-
-                {/* Duration */}
-                <TableCell>{svc.duration_minutes} mins</TableCell>
-
-                {/* Status */}
-                <TableCell>
+                <div className="flex items-center justify-between pt-3 border-t border-border">
                   <div className="flex items-center gap-2">
-                    <Switch
-                      checked={svc.is_active}
-                      onCheckedChange={() => handleToggleActive(svc)}
-                    />
-                    <Badge variant={svc.is_active ? "success" : "outline"}>
-                      {svc.is_active ? "Active" : "Disabled"}
-                    </Badge>
+                    <Switch checked={svc.is_active} onCheckedChange={() => handleToggleActive(svc)} />
+                    <span className="text-xs text-muted-foreground">{svc.is_active ? "Enabled" : "Disabled"}</span>
                   </div>
-                </TableCell>
 
-                {/* Actions */}
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => handleOpenEdit(svc)}
-                      title="Edit"
-                    >
-                      <Edit2 className="size-3.5" />
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleMove(index, "up")} disabled={index === 0} className="size-8 p-0">
+                      <ArrowUp className="size-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      className="text-destructive hover:bg-destructive/10"
-                      onClick={() => setDeleteTarget(svc)}
-                      title="Delete"
-                    >
-                      <Trash2 className="size-3.5" />
+                    <Button variant="ghost" size="sm" onClick={() => handleMove(index, "down")} disabled={index === services.length - 1} className="size-8 p-0">
+                      <ArrowDown className="size-3.5" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleOpenEdit(svc)} className="min-h-[36px]">
+                      Edit
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(svc)} className="text-destructive size-9 p-0">
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
-                </TableCell>
-              </TableRow>
+                </div>
+              </div>
             ))}
-          </TableBody>
-        </Table>
+          </div>
+
+          {/* Desktop Table (>=768px) */}
+          <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden shadow-xs">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[60px]">Order</TableHead>
+                  <TableHead>Service Name</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {services.map((svc, index) => (
+                  <TableRow key={svc.id}>
+                    <TableCell>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => handleMove(index, "up")}
+                          className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <ArrowUp className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === services.length - 1}
+                          onClick={() => handleMove(index, "down")}
+                          className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <ArrowDown className="size-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-foreground">{svc.name_en}</span>
+                        <span className="text-xs text-muted-foreground">HU: {svc.name_hu}</span>
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="font-medium font-mono text-sm">
+                      {new Intl.NumberFormat("hu-HU").format(svc.price)} {svc.currency}
+                    </TableCell>
+
+                    <TableCell className="font-mono text-xs">{svc.duration_minutes} mins</TableCell>
+
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Switch checked={svc.is_active} onCheckedChange={() => handleToggleActive(svc)} />
+                        <Badge variant={svc.is_active ? "success" : "outline"}>
+                          {svc.is_active ? "Active" : "Disabled"}
+                        </Badge>
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon-xs" onClick={() => handleOpenEdit(svc)} title="Edit">
+                          <Edit2 className="size-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon-xs" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(svc)} title="Delete">
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
 
       {/* Create / Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogHeader onClose={() => setIsDialogOpen(false)}>
-          <DialogTitle>
-            {editingService ? "Edit Service" : "Create New Service"}
-          </DialogTitle>
-          <DialogDescription>
-            Configure pricing, language titles, and appointment duration.
-          </DialogDescription>
+          <DialogTitle>{editingService ? "Edit Service" : "Create New Service"}</DialogTitle>
+          <DialogDescription>Configure pricing, language titles, and appointment duration.</DialogDescription>
         </DialogHeader>
 
         {errorMsg && (
@@ -324,23 +340,11 @@ export function ServicesManager({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="name_en">English Name *</Label>
-              <Input
-                id="name_en"
-                value={nameEn}
-                onChange={(e) => setNameEn(e.target.value)}
-                placeholder="e.g. Haircut & Beard"
-                required
-              />
+              <Input id="name_en" value={nameEn} onChange={(e) => setNameEn(e.target.value)} required />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="name_hu">Hungarian Name *</Label>
-              <Input
-                id="name_hu"
-                value={nameHu}
-                onChange={(e) => setNameHu(e.target.value)}
-                placeholder="e.g. Hajvágás és Szakáll"
-                required
-              />
+              <Input id="name_hu" value={nameHu} onChange={(e) => setNameHu(e.target.value)} required />
             </div>
           </div>
 
@@ -353,21 +357,13 @@ export function ServicesManager({
                 min="0"
                 step="100"
                 value={price}
-                onChange={(e) =>
-                  setPrice(e.target.value === "" ? "" : Number(e.target.value))
-                }
+                onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
                 required
               />
             </div>
             <div className="space-y-1.5 sm:col-span-1">
               <Label htmlFor="currency">Currency</Label>
-              <Input
-                id="currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                placeholder="HUF"
-                required
-              />
+              <Input id="currency" value={currency} onChange={(e) => setCurrency(e.target.value)} required />
             </div>
             <div className="space-y-1.5 sm:col-span-1">
               <Label htmlFor="duration">Duration (mins) *</Label>
@@ -377,11 +373,7 @@ export function ServicesManager({
                 min="5"
                 step="5"
                 value={durationMinutes}
-                onChange={(e) =>
-                  setDurationMinutes(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
+                onChange={(e) => setDurationMinutes(e.target.value === "" ? "" : Number(e.target.value))}
                 required
               />
             </div>
@@ -389,24 +381,12 @@ export function ServicesManager({
 
           <div className="space-y-1.5">
             <Label htmlFor="desc_en">English Description</Label>
-            <Textarea
-              id="desc_en"
-              value={descEn}
-              onChange={(e) => setDescEn(e.target.value)}
-              placeholder="Brief description of service..."
-              rows={2}
-            />
+            <Textarea id="desc_en" value={descEn} onChange={(e) => setDescEn(e.target.value)} rows={2} />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="desc_hu">Hungarian Description</Label>
-            <Textarea
-              id="desc_hu"
-              value={descHu}
-              onChange={(e) => setDescHu(e.target.value)}
-              placeholder="Rövid leírás a szolgáltatásról..."
-              rows={2}
-            />
+            <Textarea id="desc_hu" value={descHu} onChange={(e) => setDescHu(e.target.value)} rows={2} />
           </div>
 
           <div className="flex items-center gap-3 pt-2">
@@ -417,11 +397,7 @@ export function ServicesManager({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsDialogOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
@@ -436,16 +412,9 @@ export function ServicesManager({
         <DialogHeader onClose={() => setDeleteTarget(null)}>
           <DialogTitle>Confirm Delete</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete service &quot;{deleteTarget?.name_en}&quot;? This action cannot be undone.
+            Are you sure you want to delete service &quot;{deleteTarget?.name_en}&quot;?
           </DialogDescription>
         </DialogHeader>
-
-        {errorMsg && (
-          <div className="flex items-center gap-2 rounded-md bg-destructive/15 p-3 text-xs text-destructive mb-4">
-            <AlertCircle className="size-4 shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setDeleteTarget(null)}>

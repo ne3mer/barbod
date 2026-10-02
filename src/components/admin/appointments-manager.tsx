@@ -15,6 +15,11 @@ import {
   Ban,
   List,
   Columns,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Loader2,
+  Scissors,
 } from "lucide-react";
 
 import type { Tables, AppointmentStatus } from "@/types";
@@ -46,6 +51,8 @@ import {
   rescheduleAppointmentAction,
   deleteAppointmentAction,
 } from "@/app/admin/(dashboard)/appointments/actions";
+import { fetchAvailableSlotsAction } from "@/app/(site)/book/actions";
+import type { AvailableSlot } from "@/lib/booking/availability";
 
 type AppointmentRow = Tables<"appointments"> & {
   services?: Tables<"services"> | null;
@@ -81,8 +88,8 @@ export function AppointmentsManager({
     setAppointments(initialAppointments);
   }
 
-  // Calendar View Mode: "day" | "week" | "table"
-  const [viewMode, setViewMode] = React.useState<"day" | "week" | "table">("day");
+  // View Mode: "day" | "table"
+  const [viewMode, setViewMode] = React.useState<"day" | "table">("day");
 
   // Filters
   const [selectedBarberId, setSelectedBarberId] = React.useState<string>("all");
@@ -98,6 +105,7 @@ export function AppointmentsManager({
   const [isCreateOpen, setIsCreateOpen] = React.useState(initialNewModalOpen);
   const [selectedApp, setSelectedApp] = React.useState<AppointmentRow | null>(null);
   const [rescheduleApp, setRescheduleApp] = React.useState<AppointmentRow | null>(null);
+  const [cancelTarget, setCancelTarget] = React.useState<AppointmentRow | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<AppointmentRow | null>(null);
 
   // Create Form State
@@ -111,11 +119,13 @@ export function AppointmentsManager({
   const [notes, setNotes] = React.useState("");
   const [appStatus, setAppStatus] = React.useState<AppointmentStatus>("confirmed");
 
-  // Reschedule Form State
+  // Interactive Reschedule State
   const [rescheduleBarberId, setRescheduleBarberId] = React.useState("");
   const [rescheduleServiceId, setRescheduleServiceId] = React.useState("");
   const [rescheduleDate, setRescheduleDate] = React.useState("");
   const [rescheduleTime, setRescheduleTime] = React.useState("");
+  const [rescheduleSlots, setRescheduleSlots] = React.useState<AvailableSlot[]>([]);
+  const [loadingRescheduleSlots, setLoadingRescheduleSlots] = React.useState(false);
 
   const [loading, setLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
@@ -123,13 +133,13 @@ export function AppointmentsManager({
   // Date Navigation
   const handlePrevDate = () => {
     const d = new Date(currentDate);
-    d.setDate(d.getDate() - (viewMode === "week" ? 7 : 1));
+    d.setDate(d.getDate() - 1);
     setCurrentDate(d.toISOString().split("T")[0]);
   };
 
   const handleNextDate = () => {
     const d = new Date(currentDate);
-    d.setDate(d.getDate() + (viewMode === "week" ? 7 : 1));
+    d.setDate(d.getDate() + 1);
     setCurrentDate(d.toISOString().split("T")[0]);
   };
 
@@ -193,10 +203,12 @@ export function AppointmentsManager({
     if (res.error) {
       setAppointments(initialAppointments);
     } else {
+      setSelectedApp((prev) => (prev?.id === id ? { ...prev, status: nextStatus } : prev));
       router.refresh();
     }
   };
 
+  // Open Reschedule Modal & Fetch Available Slots
   const handleOpenReschedule = (app: AppointmentRow) => {
     setRescheduleApp(app);
     const parts = utcToBudapestParts(app.start_at);
@@ -207,9 +219,35 @@ export function AppointmentsManager({
     setErrorMsg(null);
   };
 
+  // Dynamically load available slots for rescheduling when Barber, Service, or Date changes
+  React.useEffect(() => {
+    if (!rescheduleApp || !rescheduleBarberId || !rescheduleServiceId || !rescheduleDate) return;
+    let isMounted = true;
+
+    const loadSlots = async () => {
+      setLoadingRescheduleSlots(true);
+      const res = await fetchAvailableSlotsAction(
+        rescheduleBarberId,
+        rescheduleServiceId,
+        rescheduleDate
+      );
+      if (!isMounted) return;
+      setLoadingRescheduleSlots(false);
+      if (res.slots) {
+        setRescheduleSlots(res.slots);
+      }
+    };
+
+    loadSlots();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [rescheduleApp, rescheduleBarberId, rescheduleServiceId, rescheduleDate]);
+
   const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rescheduleApp) return;
+    if (!rescheduleApp || !rescheduleTime) return;
 
     setLoading(true);
     setErrorMsg(null);
@@ -228,6 +266,7 @@ export function AppointmentsManager({
       setErrorMsg(res.error);
     } else {
       setRescheduleApp(null);
+      setSelectedApp(null);
       router.refresh();
     }
   };
@@ -242,11 +281,21 @@ export function AppointmentsManager({
       setErrorMsg(res.error);
     } else {
       setDeleteTarget(null);
+      setSelectedApp(null);
       router.refresh();
     }
   };
 
-  // Filtered Barbers for Column Layout
+  // Metrics Summary
+  const metrics = React.useMemo(() => {
+    const pending = appointments.filter((a) => a.status === "pending").length;
+    const confirmed = appointments.filter((a) => a.status === "confirmed").length;
+    const completed = appointments.filter((a) => a.status === "completed").length;
+    const cancelled = appointments.filter((a) => a.status === "cancelled").length;
+    return { pending, confirmed, completed, cancelled, total: appointments.length };
+  }, [appointments]);
+
+  // Filtered Barbers
   const displayedBarbers = React.useMemo(() => {
     if (selectedBarberId === "all") return barbers;
     return barbers.filter((b) => b.id === selectedBarberId);
@@ -274,6 +323,14 @@ export function AppointmentsManager({
     });
   }, [appointments, selectedBarberId, statusFilter, searchQuery]);
 
+  // Mobile appointments list for selected date
+  const mobileDateAppointments = React.useMemo(() => {
+    return filteredAppointments.filter((app) => {
+      const parts = utcToBudapestParts(app.start_at);
+      return parts.dateStr === currentDate;
+    });
+  }, [filteredAppointments, currentDate]);
+
   const getStatusBadge = (status: AppointmentStatus) => {
     switch (status) {
       case "pending":
@@ -291,80 +348,157 @@ export function AppointmentsManager({
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* 1. Header & Quick Metrics */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground font-serif">
-            Barbershop Schedule & Calendar
+            Appointments & Schedule
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Multi-staff column schedule view with real-time double-booking protection.
+            Operational dashboard for staff appointments, confirmation, and instant rescheduling.
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {/* View Switcher */}
-          <div className="flex items-center rounded-sm border border-border p-1 bg-muted/20">
+          <div className="flex items-center rounded-md border border-border p-1 bg-card">
             <Button
               variant={viewMode === "day" ? "default" : "ghost"}
               size="xs"
               onClick={() => setViewMode("day")}
-              className="gap-1 text-xs"
+              className="gap-1 text-xs min-h-[36px]"
             >
               <Columns className="size-3.5" />
-              <span>Day View</span>
+              <span className="hidden xs:inline">Day View</span>
             </Button>
             <Button
               variant={viewMode === "table" ? "default" : "ghost"}
               size="xs"
               onClick={() => setViewMode("table")}
-              className="gap-1 text-xs"
+              className="gap-1 text-xs min-h-[36px]"
             >
               <List className="size-3.5" />
-              <span>List View</span>
+              <span className="hidden xs:inline">List View</span>
             </Button>
           </div>
 
-          <Button onClick={() => handleOpenCreate()} className="gap-2 text-xs font-semibold uppercase tracking-wider">
+          <Button onClick={() => handleOpenCreate()} className="gap-2 text-xs font-semibold uppercase tracking-wider min-h-[38px] px-4">
             <Plus className="size-4" />
             <span>New Booking</span>
           </Button>
         </div>
       </div>
 
-      {/* Toolbar & Filters */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-card p-4 rounded-sm border border-border shadow-xs">
+      {/* 2. Operational Metrics Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Pending Card (Prominent Action Needed) */}
+        <div
+          onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")}
+          className={`cursor-pointer rounded-xl border p-4 transition-all ${
+            metrics.pending > 0
+              ? "border-amber-500/50 bg-amber-500/10 shadow-md ring-1 ring-amber-500/30"
+              : "border-border bg-card"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
+              <Clock className="size-3.5" /> Pending
+            </span>
+            {metrics.pending > 0 && (
+              <Badge variant="warning" className="text-[10px] animate-pulse">
+                Action Required
+              </Badge>
+            )}
+          </div>
+          <div className="mt-2 text-3xl font-bold font-mono text-foreground">
+            {metrics.pending}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {metrics.pending === 1 ? "1 booking awaiting confirm" : `${metrics.pending} bookings awaiting confirm`}
+          </p>
+        </div>
+
+        {/* Confirmed Card */}
+        <div
+          onClick={() => setStatusFilter(statusFilter === "confirmed" ? "all" : "confirmed")}
+          className="cursor-pointer rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <CheckCircle2 className="size-3.5" /> Confirmed
+            </span>
+          </div>
+          <div className="mt-2 text-3xl font-bold font-mono text-foreground">
+            {metrics.confirmed}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">Scheduled appointments</p>
+        </div>
+
+        {/* Completed Card */}
+        <div
+          onClick={() => setStatusFilter(statusFilter === "completed" ? "all" : "completed")}
+          className="cursor-pointer rounded-xl border border-border bg-card p-4 transition-all hover:border-emerald-500/50"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+              <CheckCircle2 className="size-3.5" /> Completed
+            </span>
+          </div>
+          <div className="mt-2 text-3xl font-bold font-mono text-foreground">
+            {metrics.completed}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">Fulfilled bookings</p>
+        </div>
+
+        {/* Cancelled Card */}
+        <div
+          onClick={() => setStatusFilter(statusFilter === "cancelled" ? "all" : "cancelled")}
+          className="cursor-pointer rounded-xl border border-border bg-card p-4 transition-all hover:border-destructive/50"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <XCircle className="size-3.5" /> Cancelled
+            </span>
+          </div>
+          <div className="mt-2 text-3xl font-bold font-mono text-foreground">
+            {metrics.cancelled}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">Cancelled bookings</p>
+        </div>
+      </div>
+
+      {/* 3. Toolbar & Filters */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border shadow-xs">
         {/* Date Navigator */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="xs" onClick={handlePrevDate}>
+          <Button variant="outline" size="sm" onClick={handlePrevDate} className="size-9 p-0">
             <ChevronLeft className="size-4" />
           </Button>
           <Input
             type="date"
             value={currentDate}
             onChange={(e) => setCurrentDate(e.target.value)}
-            className="w-auto h-8 text-xs font-mono"
+            className="w-auto h-9 text-xs font-mono rounded-lg"
           />
-          <Button variant="outline" size="xs" onClick={handleNextDate}>
+          <Button variant="outline" size="sm" onClick={handleNextDate} className="size-9 p-0">
             <ChevronRight className="size-4" />
           </Button>
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             onClick={() => setCurrentDate(new Date().toISOString().split("T")[0])}
-            className="text-xs text-muted-foreground font-mono"
+            className="text-xs font-mono"
           >
             Today
           </Button>
         </div>
 
-        {/* Barber Filter */}
-        <div className="flex items-center gap-3">
+        {/* Barber, Status & Search Filters */}
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
             <User className="size-3.5 text-muted-foreground" />
             <Select
               value={selectedBarberId}
               onChange={(e) => setSelectedBarberId(e.target.value)}
-              className="h-8 text-xs w-44"
+              className="h-9 text-xs w-36 sm:w-44 rounded-lg"
             >
               <option value="all">All Barbers ({barbers.length})</option>
               {barbers.map((b) => (
@@ -375,11 +509,10 @@ export function AppointmentsManager({
             </Select>
           </div>
 
-          {/* Status Filter */}
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-8 text-xs w-36"
+            className="h-9 text-xs w-32 sm:w-36 rounded-lg"
           >
             <option value="all">All Statuses</option>
             <option value="pending">Pending</option>
@@ -388,25 +521,121 @@ export function AppointmentsManager({
             <option value="cancelled">Cancelled</option>
           </Select>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+          <div className="relative flex-1 min-w-[140px]">
+            <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
             <Input
               placeholder="Search customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 pl-8 text-xs w-40"
+              className="h-9 pl-8 text-xs w-full rounded-lg"
             />
           </div>
         </div>
       </div>
 
-      {/* DAY VIEW — MULTI-BARBER COLUMN CALENDAR */}
+      {/* 4. MOBILE CARDS VIEW (< 768px on Day View) */}
+      <div className="md:hidden space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-2">
+          <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+            {currentDate} Appointments ({mobileDateAppointments.length})
+          </span>
+        </div>
+
+        {mobileDateAppointments.length === 0 ? (
+          <div className="p-8 border border-dashed border-border rounded-xl text-center bg-card">
+            <p className="text-xs text-muted-foreground font-light">
+              No appointments scheduled for {currentDate}.
+            </p>
+          </div>
+        ) : (
+          mobileDateAppointments.map((app) => {
+            const parts = utcToBudapestParts(app.start_at);
+            const isPending = app.status === "pending";
+            const isConfirmed = app.status === "confirmed";
+
+            return (
+              <div
+                key={app.id}
+                className={`rounded-xl border p-4 bg-card space-y-3 shadow-sm ${
+                  isPending ? "border-amber-500/40 bg-amber-500/5" : "border-border"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                      {parts.timeStr}
+                    </span>
+                    {getStatusBadge(app.status)}
+                  </div>
+                  <span className="text-xs font-serif font-medium text-muted-foreground">
+                    {app.barbers?.name || "Barber"}
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="text-base font-semibold text-foreground font-sans">
+                    {app.customer_name}
+                  </h4>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                    <Scissors className="size-3 text-primary" />
+                    <span>{app.services?.name_en || "Service"}</span>
+                    <span>· {app.services?.duration_minutes || 30} min</span>
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
+                  <span className="font-mono text-muted-foreground">{app.customer_phone}</span>
+
+                  <div className="flex items-center gap-1.5">
+                    {isPending && (
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[36px] px-3 text-xs"
+                        onClick={() => handleStatusUpdate(app.id, "confirmed")}
+                      >
+                        Confirm
+                      </Button>
+                    )}
+                    {isConfirmed && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-emerald-500 border-emerald-500/30 min-h-[36px] px-3 text-xs"
+                        onClick={() => handleStatusUpdate(app.id, "completed")}
+                      >
+                        Complete
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-[36px] px-3 text-xs"
+                      onClick={() => handleOpenReschedule(app)}
+                    >
+                      Reschedule
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-[36px] px-2 text-xs"
+                      onClick={() => setSelectedApp(app)}
+                    >
+                      Details
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 5. DESKTOP DAY VIEW — MULTI-BARBER COLUMN CALENDAR (hidden on mobile) */}
       {viewMode === "day" && (
-        <div className="rounded-sm border border-border bg-card shadow-xl overflow-hidden">
+        <div className="hidden md:block rounded-xl border border-border bg-card shadow-xl overflow-hidden">
           <div className="overflow-x-auto scrollbar-thin">
             <div className="min-w-[650px] lg:min-w-full">
-              {/* Calendar Header Columns */}
+              {/* Header Columns */}
               <div
                 className="grid border-b border-border bg-muted/90 backdrop-blur-md divide-x divide-border sticky top-0 z-20 shadow-xs"
                 style={{
@@ -465,7 +694,6 @@ export function AppointmentsManager({
 
                       {/* Barber Slots Column */}
                       {displayedBarbers.map((barber) => {
-                        // Find appointments matching date, barber, and starting in this hour
                         const cellApps = filteredAppointments.filter((app) => {
                           if (app.barber_id !== barber.id) return false;
                           const parts = utcToBudapestParts(app.start_at);
@@ -474,7 +702,6 @@ export function AppointmentsManager({
                           return appHour === hour;
                         });
 
-                        // Find blocked times matching date & barber
                         const cellBlocks = blockedTimes.filter((bt) => {
                           if (bt.barber_id !== barber.id) return false;
                           const startParts = utcToBudapestParts(bt.start_at);
@@ -487,14 +714,12 @@ export function AppointmentsManager({
                           <div
                             key={barber.id}
                             onClick={(e) => {
-                              // If background clicked, open create modal with this time
                               if (e.target === e.currentTarget) {
                                 handleOpenCreate(barber.id, hourStr);
                               }
                             }}
                             className="p-1.5 relative group hover:bg-white/[0.03] active:bg-primary/5 transition-colors min-h-[84px] sm:min-h-[72px] space-y-1.5 cursor-pointer"
                           >
-                            {/* Tap Hint for Empty Slots */}
                             {cellApps.length === 0 && cellBlocks.length === 0 && (
                               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                 <span className="text-[10px] font-mono text-primary/70 uppercase tracking-widest flex items-center gap-1 bg-background/90 px-2 py-1 rounded-sm border border-primary/20 shadow-xs">
@@ -503,18 +728,16 @@ export function AppointmentsManager({
                               </div>
                             )}
 
-                            {/* Render Blocked Times */}
                             {cellBlocks.map((bt) => (
                               <div
                                 key={bt.id}
-                                className="p-2 rounded-sm bg-destructive/10 border border-destructive/30 text-[11px] font-mono text-destructive flex items-center gap-1.5"
+                                className="p-2 rounded-md bg-destructive/10 border border-destructive/30 text-[11px] font-mono text-destructive flex items-center gap-1.5"
                               >
                                 <Ban className="size-3 shrink-0" />
                                 <span className="truncate">BLOCKED: {bt.reason || "Internal"}</span>
                               </div>
                             ))}
 
-                            {/* Render Appointments */}
                             {cellApps.map((app) => {
                               const parts = utcToBudapestParts(app.start_at);
                               const isPending = app.status === "pending";
@@ -536,7 +759,7 @@ export function AppointmentsManager({
                                     e.stopPropagation();
                                     setSelectedApp(app);
                                   }}
-                                  className={`p-2.5 rounded-sm border ${bgClass} cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-all shadow-xs space-y-1`}
+                                  className={`p-2.5 rounded-lg border ${bgClass} cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-all shadow-xs space-y-1`}
                                 >
                                   <div className="flex items-center justify-between text-xs">
                                     <span className="font-semibold truncate">{app.customer_name}</span>
@@ -561,105 +784,107 @@ export function AppointmentsManager({
         </div>
       )}
 
-      {/* TABLE / LIST VIEW */}
+      {/* 6. TABLE / LIST VIEW */}
       {viewMode === "table" && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Barber</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Service</TableHead>
-              <TableHead>Date & Time (Budapest)</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAppointments.length === 0 ? (
+        <div className="rounded-xl border border-border bg-card overflow-hidden shadow-md">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No appointments found for the selected criteria.
-                </TableCell>
+                <TableHead>Barber</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Service</TableHead>
+                <TableHead>Date & Time (Budapest)</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ) : (
-              filteredAppointments.map((app) => {
-                const startParts = utcToBudapestParts(app.start_at);
-                const endParts = utcToBudapestParts(app.end_at);
-                const svcName = app.services
-                  ? `${app.services.name_en} (${app.services.duration_minutes}m)`
-                  : "Service";
-                const barberName = app.barbers?.name || "Unassigned";
+            </TableHeader>
+            <TableBody>
+              {filteredAppointments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    No appointments found for the selected criteria.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredAppointments.map((app) => {
+                  const startParts = utcToBudapestParts(app.start_at);
+                  const endParts = utcToBudapestParts(app.end_at);
+                  const svcName = app.services
+                    ? `${app.services.name_en} (${app.services.duration_minutes}m)`
+                    : "Service";
+                  const barberName = app.barbers?.name || "Unassigned";
 
-                return (
-                  <TableRow key={app.id}>
-                    <TableCell className="font-serif font-semibold text-sm">
-                      {barberName}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-foreground">{app.customer_name}</span>
-                        <span className="text-xs text-muted-foreground">{app.customer_phone}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium text-xs">{svcName}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col text-xs font-mono">
-                        <span>{startParts.formattedDate}</span>
-                        <span className="text-muted-foreground">
-                          {startParts.timeStr} – {endParts.timeStr}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(app.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {app.status === "pending" && (
-                          <Button
-                            variant="outline"
-                            size="xs"
-                            className="text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                            onClick={() => handleStatusUpdate(app.id, "confirmed")}
-                          >
-                            Confirm
+                  return (
+                    <TableRow key={app.id}>
+                      <TableCell className="font-serif font-semibold text-sm">
+                        {barberName}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-foreground">{app.customer_name}</span>
+                          <span className="text-xs text-muted-foreground">{app.customer_phone}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium text-xs">{svcName}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col text-xs font-mono">
+                          <span>{startParts.formattedDate}</span>
+                          <span className="text-muted-foreground">
+                            {startParts.timeStr} – {endParts.timeStr}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(app.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {app.status === "pending" && (
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              className="text-emerald-600 border-emerald-500/40 hover:bg-emerald-500/10 font-semibold"
+                              onClick={() => handleStatusUpdate(app.id, "confirmed")}
+                            >
+                              Confirm
+                            </Button>
+                          )}
+                          {app.status === "confirmed" && (
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              className="text-emerald-600 border-emerald-500/40 hover:bg-emerald-500/10"
+                              onClick={() => handleStatusUpdate(app.id, "completed")}
+                            >
+                              Complete
+                            </Button>
+                          )}
+                          {(app.status === "pending" || app.status === "confirmed") && (
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                              onClick={() => setCancelTarget(app)}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="xs" onClick={() => handleOpenReschedule(app)}>
+                            Reschedule
                           </Button>
-                        )}
-                        {app.status === "confirmed" && (
-                          <Button
-                            variant="outline"
-                            size="xs"
-                            className="text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                            onClick={() => handleStatusUpdate(app.id, "completed")}
-                          >
-                            Complete
+                          <Button variant="ghost" size="xs" onClick={() => setSelectedApp(app)}>
+                            Details
                           </Button>
-                        )}
-                        {(app.status === "pending" || app.status === "confirmed") && (
-                          <Button
-                            variant="outline"
-                            size="xs"
-                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                            onClick={() => handleStatusUpdate(app.id, "cancelled")}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="xs" onClick={() => handleOpenReschedule(app)}>
-                          Reschedule
-                        </Button>
-                        <Button variant="ghost" size="xs" onClick={() => setSelectedApp(app)}>
-                          Details
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
-      {/* Manual Create Appointment Dialog */}
+      {/* 7. MANUAL CREATE APPOINTMENT DIALOG */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogHeader onClose={() => setIsCreateOpen(false)}>
           <DialogTitle>New Manual Booking</DialogTitle>
@@ -801,12 +1026,12 @@ export function AppointmentsManager({
         </form>
       </Dialog>
 
-      {/* Reschedule Dialog */}
+      {/* 8. INTERACTIVE RESCHEDULE DIALOG */}
       <Dialog open={!!rescheduleApp} onOpenChange={() => setRescheduleApp(null)}>
         <DialogHeader onClose={() => setRescheduleApp(null)}>
           <DialogTitle>Reschedule Appointment</DialogTitle>
           <DialogDescription>
-            Change barber, date, or service for {rescheduleApp?.customer_name}.
+            Select a new date, time, or barber for {rescheduleApp?.customer_name}.
           </DialogDescription>
         </DialogHeader>
 
@@ -817,7 +1042,7 @@ export function AppointmentsManager({
           </div>
         )}
 
-        <form onSubmit={handleRescheduleSubmit} className="space-y-4 text-sm">
+        <form onSubmit={handleRescheduleSubmit} className="space-y-5 text-sm">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="r_barber">Assigned Barber</Label>
@@ -850,49 +1075,79 @@ export function AppointmentsManager({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="r_date">New Date *</Label>
-              <Input
-                id="r_date"
-                type="date"
-                value={rescheduleDate}
-                onChange={(e) => setRescheduleDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="r_time">New Start Time *</Label>
-              <Input
-                id="r_time"
-                type="time"
-                value={rescheduleTime}
-                onChange={(e) => setRescheduleTime(e.target.value)}
-                required
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="r_date">New Date (Budapest) *</Label>
+            <Input
+              id="r_date"
+              type="date"
+              value={rescheduleDate}
+              onChange={(e) => setRescheduleDate(e.target.value)}
+              required
+              className="h-10 text-sm font-mono"
+            />
+          </div>
+
+          {/* Time Slot Picker Grid for Rescheduling */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <span>Select Available Time Slot *</span>
+              {rescheduleTime && (
+                <span className="font-mono font-bold text-primary">Selected: {rescheduleTime}</span>
+              )}
+            </Label>
+
+            {loadingRescheduleSlots ? (
+              <div className="flex items-center justify-center p-6 border border-border rounded-lg bg-card/60">
+                <Loader2 className="size-4 animate-spin text-primary mr-2" />
+                <span className="text-xs text-muted-foreground font-mono">Loading available slots...</span>
+              </div>
+            ) : rescheduleSlots.length === 0 ? (
+              <div className="p-6 border border-dashed border-border rounded-lg text-center bg-card/40">
+                <p className="text-xs text-muted-foreground">No available slots on this date with selected barber.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[220px] overflow-y-auto p-1 border border-border rounded-lg bg-card">
+                {rescheduleSlots.map((slot) => {
+                  const isSelected = rescheduleTime === slot.timeStr;
+                  return (
+                    <button
+                      key={slot.timeStr}
+                      type="button"
+                      onClick={() => setRescheduleTime(slot.timeStr)}
+                      className={`min-h-[40px] rounded-md border text-xs font-mono font-semibold transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary text-primary-foreground shadow-xs font-bold"
+                          : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted"
+                      }`}
+                    >
+                      {slot.formattedTime}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setRescheduleApp(null)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !rescheduleTime}>
               {loading ? "Validating..." : "Confirm Reschedule"}
             </Button>
           </DialogFooter>
         </form>
       </Dialog>
 
-      {/* Appointment Details Dialog */}
+      {/* 9. APPOINTMENT DETAILS DIALOG WITH QUICK ACTIONS */}
       <Dialog open={!!selectedApp} onOpenChange={() => setSelectedApp(null)}>
         <DialogHeader onClose={() => setSelectedApp(null)}>
           <DialogTitle>Appointment Details</DialogTitle>
-          <DialogDescription>Full appointment details and status management</DialogDescription>
+          <DialogDescription>Full appointment info and operational status management</DialogDescription>
         </DialogHeader>
 
         {selectedApp && (
-          <div className="space-y-4 text-sm">
+          <div className="space-y-5 text-sm">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <span className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">
                 Status
@@ -920,7 +1175,7 @@ export function AppointmentsManager({
             <div className="grid gap-3 sm:grid-cols-2 border-t border-border pt-3">
               <div>
                 <span className="text-xs text-muted-foreground block">Phone</span>
-                <span className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+                <span className="font-semibold text-foreground flex items-center gap-1.5 mt-0.5 font-mono">
                   <Phone className="size-3.5 text-primary" />
                   {selectedApp.customer_phone}
                 </span>
@@ -935,43 +1190,120 @@ export function AppointmentsManager({
             </div>
 
             <div className="border-t border-border pt-3">
-              <span className="text-xs text-muted-foreground block">Date & Time</span>
+              <span className="text-xs text-muted-foreground block">Date & Time (Budapest)</span>
               <span className="font-mono font-medium text-foreground flex items-center gap-1.5 mt-0.5">
                 <Clock className="size-3.5 text-primary" />
                 {utcToBudapestParts(selectedApp.start_at).formattedDateTime} –{" "}
-                {utcToBudapestParts(selectedApp.end_at).formattedTime}
+                {utcToBudapestParts(selectedApp.end_at).formattedTime} ({selectedApp.services?.duration_minutes || 30} min)
               </span>
             </div>
 
             {selectedApp.notes && (
               <div className="border-t border-border pt-3">
                 <span className="text-xs text-muted-foreground block">Notes</span>
-                <p className="mt-1 bg-muted/40 p-3 rounded-md text-xs text-foreground font-light">
+                <p className="mt-1 bg-muted/40 p-3 rounded-lg text-xs text-foreground font-light">
                   {selectedApp.notes}
                 </p>
               </div>
             )}
 
-            <DialogFooter className="pt-2">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  setDeleteTarget(selectedApp);
-                  setSelectedApp(null);
-                }}
-              >
-                Delete Booking
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setSelectedApp(null)}>
-                Close
-              </Button>
-            </DialogFooter>
+            {/* Quick Actions Panel inside Detail Dialog */}
+            <div className="border-t border-border pt-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {selectedApp.status === "pending" && (
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                    onClick={() => handleStatusUpdate(selectedApp.id, "confirmed")}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    <span>Confirm</span>
+                  </Button>
+                )}
+                {selectedApp.status === "confirmed" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-emerald-500 border-emerald-500/40 gap-1.5"
+                    onClick={() => handleStatusUpdate(selectedApp.id, "completed")}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    <span>Complete</span>
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleOpenReschedule(selectedApp)}
+                  className="gap-1.5"
+                >
+                  <RefreshCw className="size-3.5" />
+                  <span>Reschedule</span>
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {(selectedApp.status === "pending" || selectedApp.status === "confirmed") && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setCancelTarget(selectedApp)}
+                  >
+                    Cancel Booking
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* 10. CANCELLATION CONFIRMATION DIALOG */}
+      <Dialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
+        <DialogHeader onClose={() => setCancelTarget(null)}>
+          <DialogTitle>Cancel Appointment?</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to cancel appointment for &quot;{cancelTarget?.customer_name}&quot;?
+          </DialogDescription>
+        </DialogHeader>
+
+        {cancelTarget && (
+          <div className="p-4 rounded-lg bg-card border border-border space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Customer:</span>
+              <span className="font-semibold text-foreground">{cancelTarget.customer_name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Barber:</span>
+              <span className="font-serif text-foreground">{cancelTarget.barbers?.name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Date & Time:</span>
+              <span className="font-mono text-primary">{utcToBudapestParts(cancelTarget.start_at).formattedDateTime}</span>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setCancelTarget(null)}>
+            Keep Booking
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              if (cancelTarget) {
+                await handleStatusUpdate(cancelTarget.id, "cancelled");
+                setCancelTarget(null);
+              }
+            }}
+            disabled={loading}
+          >
+            {loading ? "Cancelling..." : "Confirm Cancellation"}
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* 11. DELETE CONFIRMATION DIALOG */}
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <DialogHeader onClose={() => setDeleteTarget(null)}>
           <DialogTitle>Confirm Delete</DialogTitle>
