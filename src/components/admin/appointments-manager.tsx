@@ -533,22 +533,24 @@ export function AppointmentsManager({
         </div>
       </div>
 
-      {/* 4. MOBILE CARDS VIEW (< 768px on Day View) */}
+      {/* 4. MOBILE CARDS VIEW (< 768px) */}
       <div className="md:hidden space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-2">
           <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-            {currentDate} Appointments ({mobileDateAppointments.length})
+            {viewMode === "day"
+              ? `${currentDate} Appointments (${mobileDateAppointments.length})`
+              : `All Filtered Appointments (${filteredAppointments.length})`}
           </span>
         </div>
 
-        {mobileDateAppointments.length === 0 ? (
+        {(viewMode === "day" ? mobileDateAppointments : filteredAppointments).length === 0 ? (
           <div className="p-8 border border-dashed border-border rounded-xl text-center bg-card">
             <p className="text-xs text-muted-foreground font-light">
-              No appointments scheduled for {currentDate}.
+              No appointments scheduled.
             </p>
           </div>
         ) : (
-          mobileDateAppointments.map((app) => {
+          (viewMode === "day" ? mobileDateAppointments : filteredAppointments).map((app) => {
             const parts = utcToBudapestParts(app.start_at);
             const isPending = app.status === "pending";
             const isConfirmed = app.status === "confirmed";
@@ -556,41 +558,61 @@ export function AppointmentsManager({
             return (
               <div
                 key={app.id}
-                className={`rounded-xl border p-4 bg-card space-y-3 shadow-sm ${
-                  isPending ? "border-amber-500/40 bg-amber-500/5" : "border-border"
+                className={`rounded-xl border p-4 bg-card space-y-3.5 shadow-sm min-w-0 ${
+                  isPending ? "border-amber-500/50 bg-amber-500/5" : "border-border"
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
-                      {parts.timeStr}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded shrink-0">
+                      {parts.formattedDate} · {parts.timeStr}
                     </span>
-                    {getStatusBadge(app.status)}
+                    <div className="shrink-0">{getStatusBadge(app.status)}</div>
                   </div>
-                  <span className="text-xs font-serif font-medium text-muted-foreground">
+                  <span className="text-xs font-serif font-semibold text-muted-foreground truncate">
                     {app.barbers?.name || "Barber"}
                   </span>
                 </div>
 
-                <div>
-                  <h4 className="text-base font-semibold text-foreground font-sans">
+                <div className="space-y-1">
+                  <h4 className="text-base font-semibold text-foreground font-sans truncate">
                     {app.customer_name}
                   </h4>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                    <Scissors className="size-3 text-primary" />
-                    <span>{app.services?.name_en || "Service"}</span>
-                    <span>· {app.services?.duration_minutes || 30} min</span>
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Scissors className="size-3 text-primary shrink-0" />
+                      <span className="truncate">{app.services?.name_en || "Service"}</span>
+                    </span>
+                    <span>· {app.services?.duration_minutes || 30}m</span>
+                    {app.services?.price && (
+                      <span className="font-semibold text-primary font-sans">
+                        · {app.services.price} {app.services.currency}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
-                  <span className="font-mono text-muted-foreground">{app.customer_phone}</span>
+                <div className="pt-2.5 border-t border-border/60 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <a
+                      href={`tel:${app.customer_phone}`}
+                      className="font-mono hover:text-primary transition-colors flex items-center gap-1.5"
+                    >
+                      <Phone className="size-3.5 text-primary shrink-0" />
+                      <span>{app.customer_phone}</span>
+                    </a>
+                    {app.customer_email && (
+                      <span className="truncate text-[11px] font-mono opacity-80 max-w-[140px]">
+                        {app.customer_email}
+                      </span>
+                    )}
+                  </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     {isPending && (
                       <Button
                         size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[36px] px-3 text-xs"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white min-h-[40px] text-xs font-semibold uppercase tracking-wider"
                         onClick={() => handleStatusUpdate(app.id, "confirmed")}
                       >
                         Confirm
@@ -600,7 +622,7 @@ export function AppointmentsManager({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-emerald-500 border-emerald-500/30 min-h-[36px] px-3 text-xs"
+                        className="flex-1 text-emerald-500 border-emerald-500/40 hover:bg-emerald-500/10 min-h-[40px] text-xs font-semibold uppercase tracking-wider"
                         onClick={() => handleStatusUpdate(app.id, "completed")}
                       >
                         Complete
@@ -609,7 +631,7 @@ export function AppointmentsManager({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="min-h-[36px] px-3 text-xs"
+                      className="flex-1 min-h-[40px] text-xs uppercase tracking-wider"
                       onClick={() => handleOpenReschedule(app)}
                     >
                       Reschedule
@@ -617,11 +639,21 @@ export function AppointmentsManager({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="min-h-[36px] px-2 text-xs"
+                      className="min-h-[40px] px-3 text-xs"
                       onClick={() => setSelectedApp(app)}
                     >
                       Details
                     </Button>
+                    {(isPending || isConfirmed) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="min-h-[40px] px-3 text-xs text-destructive hover:bg-destructive/10"
+                        onClick={() => setCancelTarget(app)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -784,9 +816,9 @@ export function AppointmentsManager({
         </div>
       )}
 
-      {/* 6. TABLE / LIST VIEW */}
+      {/* 6. TABLE / LIST VIEW (Desktop only) */}
       {viewMode === "table" && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden shadow-md">
+        <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden shadow-md">
           <Table>
             <TableHeader>
               <TableRow>

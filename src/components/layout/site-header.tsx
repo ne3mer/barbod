@@ -23,28 +23,28 @@ export function SiteHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 w-full max-w-full border-b border-white/10 bg-background/90 backdrop-blur-md">
-      <div className="mx-auto flex h-20 max-w-7xl w-full min-w-0 items-center justify-between px-3 sm:px-6 gap-2">
+    <header className="sticky top-0 z-40 w-full max-w-full border-b border-white/10 bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top,0px)]">
+      <div className="mx-auto flex h-16 sm:h-20 max-w-7xl w-full min-w-0 items-center justify-between px-3 sm:px-6 gap-2">
         <Link
           href="/"
-          className="flex items-center gap-2.5 sm:gap-3 text-base font-bold tracking-tight text-foreground hover:opacity-90 transition-opacity group min-w-0 shrink"
+          className="flex items-center gap-2 sm:gap-3 text-base font-bold tracking-tight text-foreground hover:opacity-90 transition-opacity group min-w-0 shrink"
         >
-          <div className="flex size-9 items-center justify-center rounded-sm bg-primary/10 text-primary border border-primary/25 shrink-0">
+          <div className="flex size-8 sm:size-9 items-center justify-center rounded-sm bg-primary/10 text-primary border border-primary/25 shrink-0">
             <Scissors className="size-4" />
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="font-serif tracking-[0.2em] uppercase text-base font-medium text-foreground leading-none truncate">
+          <div className="flex flex-col min-w-0 leading-tight">
+            <span className="font-serif tracking-[0.12em] sm:tracking-[0.2em] uppercase text-sm sm:text-base font-medium text-foreground leading-none truncate">
               BARBOD
             </span>
-            <span className="text-[9px] sm:text-[10px] tracking-[0.15em] sm:tracking-[0.25em] uppercase text-muted-foreground font-sans mt-0.5 truncate">
+            <span className="text-[9px] sm:text-[10px] tracking-[0.12em] sm:tracking-[0.25em] uppercase text-muted-foreground font-sans mt-0.5 truncate hidden xs:block">
               BARBER ATELIER
             </span>
           </div>
         </Link>
 
-        <nav className="flex items-center gap-2 sm:gap-8 shrink-0">
+        <nav className="flex items-center gap-2 sm:gap-4 shrink-0">
           {/* Desktop Anchor Links */}
-          <div className="hidden md:flex items-center gap-8 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+          <div className="hidden md:flex items-center gap-6 lg:gap-8 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
             <Link href="/#services" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
               {t.navServices}
             </Link>
@@ -56,12 +56,13 @@ export function SiteHeader() {
             </Link>
           </div>
 
+          {/* Compact Language Switcher Pill */}
           <LanguageSwitcher />
 
           {/* Desktop Book CTA */}
           <Link
             href="/book"
-            className={`hidden sm:inline-flex ${buttonVariants({ variant: "outline", size: "sm" })}`}
+            className={`hidden md:inline-flex ${buttonVariants({ variant: "outline", size: "sm" })}`}
           >
             <span>{t.bookNow}</span>
             <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
