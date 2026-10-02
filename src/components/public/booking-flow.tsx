@@ -237,21 +237,21 @@ export function BookingFlow({
   ];
 
   return (
-    <div className="mx-auto max-w-4xl w-full px-4 py-6 sm:px-6 sm:py-12 space-y-6 sm:space-y-10">
+    <div className="mx-auto max-w-4xl w-full min-w-0 px-4 py-6 sm:px-6 sm:py-12 space-y-6 sm:space-y-10">
       {/* 1. Header */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-4 sm:pb-6">
-        <div className="flex flex-col">
+      <div className="flex flex-col xs:flex-row xs:items-center justify-between border-b border-white/10 pb-4 sm:pb-6 gap-3 min-w-0">
+        <div className="flex flex-col min-w-0">
           <span className="font-serif tracking-[0.2em] uppercase text-base sm:text-lg font-medium text-foreground leading-none">
             BARBOD
           </span>
-          <span className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground font-sans mt-1">
+          <span className="text-[10px] tracking-[0.15em] sm:tracking-[0.25em] uppercase text-muted-foreground font-sans mt-1 truncate">
             BARBER ATELIER · {t.bookingTitle}
           </span>
         </div>
 
         <Link
           href="/"
-          className="text-xs uppercase tracking-widest font-semibold text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5 py-1 px-2.5 rounded-md hover:bg-white/5"
+          className="text-xs uppercase tracking-widest font-semibold text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5 py-1 px-2.5 rounded-md hover:bg-white/5 shrink-0 self-start xs:self-auto"
         >
           <ArrowLeft className="size-3.5" />
           <span className="hidden xs:inline">{lang === "hu" ? "Vissza a weboldalra" : "Return to website"}</span>

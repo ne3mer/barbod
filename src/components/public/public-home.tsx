@@ -87,19 +87,19 @@ export function PublicHome({
   const heroFeaturedImage = portfolio.length > 0 ? getPublicUrl(portfolio[0].image_path) : null;
 
   return (
-    <div className="flex flex-col gap-24 pb-24">
+    <div className="flex flex-col gap-16 sm:gap-24 pb-24 w-full min-w-0 max-w-full">
       {/* 1. 12-Column Editorial Hero Section */}
-      <section className="relative overflow-hidden border-b border-white/10 py-16 sm:py-24 lg:py-32 bg-gradient-to-b from-background via-card/30 to-background">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
+      <section className="relative overflow-hidden border-b border-white/10 py-12 sm:py-24 lg:py-32 bg-gradient-to-b from-background via-card/30 to-background w-full max-w-full">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 min-w-0">
+          <div className="grid gap-8 lg:gap-12 lg:grid-cols-12 lg:items-center min-w-0">
             {/* Left 7-Cols */}
-            <div className="lg:col-span-7 space-y-8">
-              <div className="inline-flex items-center gap-2.5 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.25em] text-primary">
-                <Scissors className="size-3.5" />
-                <span>BUDAPEST · EST. 2026</span>
+            <div className="lg:col-span-7 space-y-6 sm:space-y-8 min-w-0">
+              <div className="inline-flex items-center gap-2.5 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] sm:tracking-[0.25em] text-primary">
+                <Scissors className="size-3.5 shrink-0" />
+                <span className="truncate">BUDAPEST · EST. 2026</span>
               </div>
 
-              <h1 className="text-5xl font-light tracking-tight text-foreground sm:text-7xl lg:text-8xl font-serif leading-[0.98] uppercase">
+              <h1 className="text-3.5xl xs:text-4.5xl sm:text-7xl lg:text-8xl font-light tracking-tight text-foreground font-serif leading-[1.02] sm:leading-[0.98] uppercase break-words min-w-0">
                 THE CRAFT
                 <br />
                 <span className="italic font-extralight text-primary">OF PRECISION</span>
@@ -107,19 +107,19 @@ export function PublicHome({
                 GROOMING.
               </h1>
 
-              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-xl font-light">
+              <p className="text-sm sm:text-lg text-muted-foreground leading-relaxed max-w-xl font-light">
                 {getLocalizedField(business, "description", lang) || t.heroSubtitle}
               </p>
 
-              <div className="flex flex-wrap items-center gap-4 pt-2">
-                <Link href="/book">
-                  <Button size="lg" className="group gap-3 px-8 text-xs uppercase tracking-[0.15em] font-semibold">
+              <div className="flex flex-col xs:flex-row flex-wrap items-stretch xs:items-center gap-3 sm:gap-4 pt-2 w-full min-w-0">
+                <Link href="/book" className="w-full xs:w-auto">
+                  <Button size="lg" className="w-full xs:w-auto min-h-[48px] group gap-3 px-6 sm:px-8 text-xs uppercase tracking-[0.15em] font-semibold">
                     <span>{t.heroPrimaryCta}</span>
                     <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-1.5" />
                   </Button>
                 </Link>
-                <Link href="#barbers">
-                  <Button size="lg" variant="outline" className="px-8 text-xs uppercase tracking-[0.15em]">
+                <Link href="#barbers" className="w-full xs:w-auto">
+                  <Button size="lg" variant="outline" className="w-full xs:w-auto min-h-[48px] px-6 sm:px-8 text-xs uppercase tracking-[0.15em]">
                     {lang === "hu" ? "MEGISMERKEDÉS A CSAPATTAL" : "MEET THE TEAM"}
                   </Button>
                 </Link>
@@ -555,24 +555,24 @@ export function PublicHome({
       </section>
 
       {/* 6. Final Editorial Booking CTA */}
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 w-full">
-        <div className="rounded-sm border border-white/10 bg-card p-10 sm:p-20 text-center space-y-8 relative overflow-hidden shadow-2xl">
-          <div className="space-y-3">
-            <span className="eyebrow">BUDAPEST BARBER ATELIER</span>
-            <h2 className="text-4xl sm:text-6xl lg:text-7xl font-light tracking-tight font-serif max-w-3xl mx-auto uppercase leading-[0.98]">
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 w-full min-w-0">
+        <div className="rounded-sm border border-white/10 bg-card p-6 sm:p-20 text-center space-y-6 sm:space-y-8 relative overflow-hidden shadow-2xl min-w-0">
+          <div className="space-y-3 min-w-0">
+            <span className="eyebrow block">BUDAPEST BARBER ATELIER</span>
+            <h2 className="text-3xl sm:text-6xl lg:text-7xl font-light tracking-tight font-serif max-w-3xl mx-auto uppercase leading-[0.98] break-words">
               READY FOR
               <br />
               <span className="italic font-extralight text-primary">YOUR NEXT</span> CUT?
             </h2>
           </div>
 
-          <p className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto font-light leading-relaxed">
+          <p className="text-sm sm:text-lg text-muted-foreground max-w-md mx-auto font-light leading-relaxed">
             {t.readySubtitle}
           </p>
 
-          <div className="pt-4">
-            <Link href="/book">
-              <Button size="lg" className="group gap-3 px-10 text-xs uppercase tracking-[0.2em] font-semibold shadow-md">
+          <div className="pt-2 sm:pt-4">
+            <Link href="/book" className="inline-block w-full xs:w-auto">
+              <Button size="lg" className="w-full xs:w-auto group gap-3 px-8 sm:px-10 text-xs uppercase tracking-[0.2em] font-semibold shadow-md min-h-[48px]">
                 <span>{t.bookNow}</span>
                 <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-1.5" />
               </Button>

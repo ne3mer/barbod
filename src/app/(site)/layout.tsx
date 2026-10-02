@@ -9,9 +9,9 @@ export default function SiteLayout({
 }) {
   return (
     <LanguageProvider>
-      <div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
+      <div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground min-w-0 max-w-full">
         <SiteHeader />
-        <div className="flex flex-1 flex-col">{children}</div>
+        <div className="flex flex-1 flex-col min-w-0 max-w-full">{children}</div>
         <SiteFooter />
       </div>
     </LanguageProvider>

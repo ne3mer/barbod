@@ -91,10 +91,14 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground selection:bg-primary/20 selection:text-primary;
+    @apply bg-background text-foreground selection:bg-primary/20 selection:text-primary min-w-0 max-w-full;
   }
   html {
-    @apply font-sans scroll-smooth;
+    @apply font-sans scroll-smooth max-w-full;
+  }
+  img, svg, video, canvas, audio, iframe {
+    max-width: 100%;
+    height: auto;
   }
 }
 

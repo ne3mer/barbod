@@ -23,26 +23,26 @@ export function SiteHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-background/90 backdrop-blur-md">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6">
+    <header className="sticky top-0 z-40 w-full max-w-full border-b border-white/10 bg-background/90 backdrop-blur-md">
+      <div className="mx-auto flex h-20 max-w-7xl w-full min-w-0 items-center justify-between px-3 sm:px-6 gap-2">
         <Link
           href="/"
-          className="flex items-center gap-3 text-base font-bold tracking-tight text-foreground hover:opacity-90 transition-opacity group"
+          className="flex items-center gap-2.5 sm:gap-3 text-base font-bold tracking-tight text-foreground hover:opacity-90 transition-opacity group min-w-0 shrink"
         >
-          <div className="flex size-9 items-center justify-center rounded-sm bg-primary/10 text-primary border border-primary/25">
+          <div className="flex size-9 items-center justify-center rounded-sm bg-primary/10 text-primary border border-primary/25 shrink-0">
             <Scissors className="size-4" />
           </div>
-          <div className="flex flex-col">
-            <span className="font-serif tracking-[0.2em] uppercase text-base font-medium text-foreground leading-none">
+          <div className="flex flex-col min-w-0">
+            <span className="font-serif tracking-[0.2em] uppercase text-base font-medium text-foreground leading-none truncate">
               BARBOD
             </span>
-            <span className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground font-sans mt-0.5">
+            <span className="text-[9px] sm:text-[10px] tracking-[0.15em] sm:tracking-[0.25em] uppercase text-muted-foreground font-sans mt-0.5 truncate">
               BARBER ATELIER
             </span>
           </div>
         </Link>
 
-        <nav className="flex items-center gap-3 sm:gap-8">
+        <nav className="flex items-center gap-2 sm:gap-8 shrink-0">
           {/* Desktop Anchor Links */}
           <div className="hidden md:flex items-center gap-8 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
             <Link href="/#services" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
@@ -72,7 +72,7 @@ export function SiteHeader() {
             variant="ghost"
             size="xs"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden size-9 p-0 text-foreground hover:bg-white/5 border border-white/10"
+            className="md:hidden size-9 p-0 text-foreground hover:bg-white/5 border border-white/10 shrink-0"
             aria-label="Toggle Navigation Menu"
             aria-expanded={mobileMenuOpen}
           >
@@ -83,9 +83,9 @@ export function SiteHeader() {
 
       {/* Minimal Editorial Mobile Navigation Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-white/10 bg-background/98 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="mx-auto max-w-7xl px-6 py-6 space-y-5">
-            <div className="flex flex-col space-y-4 text-sm font-semibold uppercase tracking-[0.2em] font-mono">
+        <div className="md:hidden border-t border-white/10 bg-background/98 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200 w-full max-w-full overflow-hidden">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-5">
+            <div className="flex flex-col space-y-4 text-sm font-semibold uppercase tracking-[0.15em] font-mono">
               <Link
                 href="/#services"
                 onClick={() => setMobileMenuOpen(false)}
@@ -116,7 +116,7 @@ export function SiteHeader() {
               <Link
                 href="/book"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block"
+                className="block w-full"
               >
                 <Button className="w-full group gap-2 text-xs uppercase tracking-[0.15em] font-semibold py-5">
                   <span>{t.bookNow}</span>
