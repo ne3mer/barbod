@@ -23,7 +23,6 @@ const FALLBACK_ATELIER_POSTS: InstagramMediaItem[] = [
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
     username: "barbod.barber.hu",
     is_reel: true,
-    reel_duration: "00:24",
   },
   {
     id: "atelier-post-3",
@@ -91,10 +90,12 @@ export async function fetchInstagramFeed(forceRefresh = false): Promise<Instagra
   }
 
   try {
-    // Official Meta Graph API / Basic Display Endpoint
+    // Instagram Platform API (Instagram Login for Professional Business/Creator accounts)
+    // Primary endpoint: https://graph.instagram.com/v22.0/me/media
+    // Fallback if explicit Meta Graph Facebook accountId is supplied: https://graph.facebook.com/v22.0/{accountId}/media
     const endpoint = accountId
-      ? `https://graph.facebook.com/v19.0/${accountId}/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,username&limit=12&access_token=${encodeURIComponent(token)}`
-      : `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,username&limit=12&access_token=${encodeURIComponent(token)}`;
+      ? `https://graph.facebook.com/v22.0/${accountId}/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,username&limit=12&access_token=${encodeURIComponent(token)}`
+      : `https://graph.instagram.com/v22.0/me/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,username&limit=12&access_token=${encodeURIComponent(token)}`;
 
     const res = await fetch(endpoint, {
       next: { revalidate: 3600 },
@@ -136,7 +137,6 @@ export async function fetchInstagramFeed(forceRefresh = false): Promise<Instagra
         timestamp,
         username,
         is_reel: isReel,
-        reel_duration: isReel ? "00:15" : undefined,
       };
     });
 

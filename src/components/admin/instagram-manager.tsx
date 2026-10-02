@@ -47,13 +47,13 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
         <div>
           <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary mb-1">
             <InstagramIcon className="size-4 shrink-0" />
-            <span>INSTAGRAM GRAPH API</span>
+            <span>INSTAGRAM PLATFORM API</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground font-serif">
             Atelier Instagram Feed
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
-            Manage real-time Meta Graph API connection, view synced media, and revalidate cache for @barbod.barber.hu.
+            Manage real-time Instagram Platform API connection (Instagram Login for Professional Accounts), view synced media, and revalidate cache for @barbod.barber.hu.
           </p>
         </div>
 
@@ -99,7 +99,7 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
           </div>
           <p className="text-xs text-muted-foreground font-light">
             {isConnected
-              ? "Meta Graph API token is active and serving live posts."
+              ? "Instagram Platform API token is active and serving live posts."
               : "Serving curated Barbod Atelier fallback posts. Add INSTAGRAM_ACCESS_TOKEN to connect live account."}
           </p>
         </div>
@@ -122,7 +122,7 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
             </a>
           </div>
           <p className="text-xs text-muted-foreground font-light">
-            Budapest Luxury Grooming Atelier
+            Professional Account (Business or Creator)
           </p>
         </div>
 
@@ -208,24 +208,30 @@ export function InstagramManager({ feed }: InstagramManagerProps) {
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Key className="size-4 text-primary" />
-          <span>Meta / Instagram API Configuration Guide</span>
+          <span>Meta / Instagram API Configuration Guide (Instagram Platform API with Instagram Login)</span>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          To connect your live @barbod.barber.hu Instagram account, add the following environment variables to Vercel and your <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">.env.local</code> file:
+          To connect your live <strong className="text-foreground">@barbod.barber.hu</strong> Professional Instagram account (Business or Creator), add the access token to Vercel and your <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">.env.local</code> file:
         </p>
         <div className="bg-muted p-4 rounded-lg font-mono text-xs text-foreground space-y-1 overflow-x-auto">
-          <div><span className="text-muted-foreground"># Server-only Meta / Instagram Graph API Access Token</span></div>
-          <div>INSTAGRAM_ACCESS_TOKEN=EAAG...</div>
-          <div className="pt-2"><span className="text-muted-foreground"># Optional Instagram Business Account ID</span></div>
-          <div>INSTAGRAM_ACCOUNT_ID=1784140...</div>
+          <div><span className="text-muted-foreground"># Server-only Instagram User Access Token (Instagram Platform API)</span></div>
+          <div>INSTAGRAM_ACCESS_TOKEN=IGQJ...</div>
         </div>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p><strong>Steps to obtain credentials:</strong></p>
+        <div className="text-xs text-muted-foreground space-y-2">
+          <p><strong>Setup & Authentication Requirements:</strong></p>
+          <ul className="list-disc list-inside space-y-1 pl-1">
+            <li><strong>Account Type:</strong> Instagram Professional Account (Business or Creator). Personal accounts are not supported.</li>
+            <li><strong>Auth Method:</strong> Instagram API with Instagram Login.</li>
+            <li><strong>Minimal Permission:</strong> <code className="font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">instagram_business_basic</code> (read profile & media).</li>
+            <li><strong>Endpoint Used:</strong> <code className="font-mono text-foreground">https://graph.instagram.com/v22.0/me/media</code></li>
+          </ul>
+          <p className="pt-2"><strong>Steps to obtain Access Token:</strong></p>
           <ol className="list-decimal list-inside space-y-1 pl-1">
-            <li>Go to <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-primary underline">developers.facebook.com</a> and create a Meta App.</li>
-            <li>Add the <strong>Instagram Basic Display API</strong> or <strong>Instagram Graph API</strong> product.</li>
-            <li>Generate a long-lived Access Token for `@barbod.barber.hu`.</li>
-            <li>Add `INSTAGRAM_ACCESS_TOKEN` in Vercel project settings under Environment Variables.</li>
+            <li>Log into <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-primary underline">developers.facebook.com</a> and create a Meta App.</li>
+            <li>Add product: <strong>Instagram Platform API</strong> (Instagram Login for Business/Creator).</li>
+            <li>Authorize @barbod.barber.hu with permission <code className="font-mono text-primary">instagram_business_basic</code>.</li>
+            <li>Generate a long-lived Access Token.</li>
+            <li>Set <code className="font-mono text-primary">INSTAGRAM_ACCESS_TOKEN</code> in Vercel project settings under Environment Variables.</li>
           </ol>
         </div>
       </div>
