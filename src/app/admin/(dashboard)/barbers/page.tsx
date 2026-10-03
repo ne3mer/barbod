@@ -52,13 +52,18 @@ export default async function AdminBarbersPage() {
   if (linkedUserIds.length > 0) {
     const adminClient = createAdminClient();
     if (adminClient) {
-      const { data: usersData } = await adminClient.auth.admin.listUsers();
+      const { data: usersData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
       if (usersData?.users) {
         usersData.users.forEach((u) => {
           userEmailMap[u.id] = u.email || "";
         });
       }
     }
+  }
+
+  // Ensure owner user email is always mapped even if auth list is cached/delayed
+  if (context.user.id && context.user.email) {
+    userEmailMap[context.user.id] = userEmailMap[context.user.id] || context.user.email;
   }
 
   const barbersWithServices = (barbers ?? []).map((b) => ({
@@ -71,6 +76,7 @@ export default async function AdminBarbersPage() {
     <BarbersManager
       barbers={barbersWithServices}
       allServices={services ?? []}
+      ownerUserId={context.user.id}
     />
   );
 }

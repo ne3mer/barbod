@@ -10,6 +10,7 @@ import {
   generateInviteLink,
   generatePasswordRecoveryLink,
   sendPasswordResetEmail,
+  updateAuthUserEmail,
 } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/auth/session";
 import { getCanonicalSiteUrl } from "@/lib/utils/url";
@@ -374,6 +375,54 @@ export async function sendBarberPasswordResetAction(barberId: string) {
     success: true,
     email: authUserRes.user.email,
     actionLink: linkRes.actionLink || null,
+  };
+}
+
+export async function changeBarberLoginEmailAction(barberId: string, newEmail: string) {
+  const context = await getAdminContext();
+  if (!context || context.role !== "owner") {
+    return { error: "Unauthorized: Owner access required." };
+  }
+
+  const supabase = await createClient();
+  const { data: barber, error: barErr } = await supabase
+    .from("barbers")
+    .select("id, name, user_id, business_id")
+    .eq("id", barberId)
+    .single();
+
+  // Tenant isolation: barber must belong to the owner's business
+  if (barErr || !barber || barber.business_id !== context.business.id) {
+    return { error: "Barber record not found." };
+  }
+  if (!barber.user_id) {
+    return { error: "This barber has no linked login account. Use \"Connect Account\" first." };
+  }
+  const isOwner = barber.user_id === context.user.id;
+
+  const res = await updateAuthUserEmail(barber.user_id, newEmail);
+  if (res.error) {
+    return { error: res.error };
+  }
+
+  // If this barber is also the business owner, sync business contact email if it matched
+  if (isOwner) {
+    const currentBusinessEmail = context.business.email;
+    if (!currentBusinessEmail || currentBusinessEmail.toLowerCase() === context.user.email?.toLowerCase()) {
+      await supabase
+        .from("businesses")
+        .update({ email: newEmail.trim().toLowerCase() })
+        .eq("id", context.business.id);
+    }
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin");
+  }
+
+  revalidatePath("/admin/barbers");
+  return {
+    success: true,
+    email: res.user?.email ?? newEmail.trim().toLowerCase(),
+    isOwner,
   };
 }
 

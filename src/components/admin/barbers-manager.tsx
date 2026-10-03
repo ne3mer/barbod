@@ -19,7 +19,9 @@ import {
   KeyRound,
   Copy,
   Check,
+  AtSign,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import type { Tables } from "@/types/database";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,7 @@ import {
   inviteOrConnectBarberAction,
   sendBarberPasswordResetAction,
   unlinkBarberUserAction,
+  changeBarberLoginEmailAction,
 } from "@/app/admin/(dashboard)/barbers/actions";
 
 export type BarberWithServices = Tables<"barbers"> & {
@@ -54,9 +57,59 @@ export type BarberWithServices = Tables<"barbers"> & {
 interface BarbersManagerProps {
   barbers: BarberWithServices[];
   allServices: Tables<"services">[];
+  ownerUserId?: string | null;
 }
 
-export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
+export function BarbersManager({ barbers, allServices, ownerUserId }: BarbersManagerProps) {
+  const router = useRouter();
+  const [prevBarbers, setPrevBarbers] = React.useState(barbers);
+  const [barberList, setBarberList] = React.useState<BarberWithServices[]>(barbers);
+
+  if (prevBarbers !== barbers) {
+    setPrevBarbers(barbers);
+    setBarberList(barbers);
+  }
+
+  // Change Login Email Dialog State
+  const [emailBarber, setEmailBarber] = React.useState<BarberWithServices | null>(null);
+  const [newBarberEmail, setNewBarberEmail] = React.useState("");
+  const [isChangingEmail, setIsChangingEmail] = React.useState(false);
+  const [emailStatus, setEmailStatus] = React.useState<{
+    type: "success" | "error";
+    msg: string;
+  } | null>(null);
+
+  const handleOpenEmailModal = (barber: BarberWithServices) => {
+    setEmailBarber(barber);
+    setNewBarberEmail("");
+    setEmailStatus(null);
+  };
+
+  const handleChangeEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailBarber || !newBarberEmail.trim()) return;
+    setIsChangingEmail(true);
+    setEmailStatus(null);
+    const res = await changeBarberLoginEmailAction(emailBarber.id, newBarberEmail);
+    setIsChangingEmail(false);
+    if (res.error) {
+      setEmailStatus({ type: "error", msg: res.error });
+    } else {
+      const updatedEmail = res.email ?? newBarberEmail.trim().toLowerCase();
+      setEmailStatus({
+        type: "success",
+        msg: res.isOwner
+          ? `Admin login email updated to ${updatedEmail}. You now sign in with this email (password unchanged). Notifications and contact settings synchronized.`
+          : `Login email updated. ${emailBarber.name} now signs in with ${updatedEmail} (password unchanged). Notifications will go to the new address.`,
+      });
+      setNewBarberEmail("");
+      setBarberList((prev) =>
+        prev.map((b) => (b.id === emailBarber.id ? { ...b, linkedEmail: updatedEmail } : b))
+      );
+      setEmailBarber((prev) => (prev ? { ...prev, linkedEmail: updatedEmail } : null));
+      router.refresh();
+    }
+  };
   const [isOpen, setIsOpen] = React.useState(false);
   const [editingBarber, setEditingBarber] = React.useState<BarberWithServices | null>(null);
 
@@ -117,6 +170,13 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
     if (res.error) {
       setInviteStatus({ type: "error", msg: res.error });
     } else {
+      const targetEmail = res.email || inviteEmail.trim().toLowerCase();
+      setBarberList((prev) =>
+        prev.map((b) =>
+          b.id === invitingBarber.id ? { ...b, linkedEmail: targetEmail, user_id: b.user_id || "linked" } : b
+        )
+      );
+      router.refresh();
       if (res.mode === "connected") {
         setInviteStatus({
           type: "success",
@@ -161,6 +221,11 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
     const res = await unlinkBarberUserAction(barber.id);
     if (res.error) {
       alert(res.error);
+    } else {
+      setBarberList((prev) =>
+        prev.map((b) => (b.id === barber.id ? { ...b, linkedEmail: null, user_id: null } : b))
+      );
+      router.refresh();
     }
   };
 
@@ -339,7 +404,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
       </div>
 
       {/* Barbers Grid */}
-      {barbers.length === 0 ? (
+      {barberList.length === 0 ? (
         <Card className="p-12 text-center border-dashed">
           <User className="size-12 text-muted-foreground/40 mx-auto mb-3" />
           <h3 className="text-lg font-medium">No Barbers Configured</h3>
@@ -353,9 +418,10 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
         </Card>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {barbers.map((barber) => {
+          {barberList.map((barber) => {
             const assignedCount = barber.assignedServiceIds.length;
             const isLinked = Boolean(barber.user_id);
+            const isOwnerBarber = Boolean(ownerUserId && barber.user_id === ownerUserId);
 
             return (
               <Card
@@ -378,9 +444,16 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                       )}
                     </div>
                     <div>
-                      <CardTitle className="text-base font-serif font-semibold">
-                        {barber.name}
-                      </CardTitle>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <CardTitle className="text-base font-serif font-semibold">
+                          {barber.name}
+                        </CardTitle>
+                        {isOwnerBarber && (
+                          <Badge variant="outline" className="text-[10px] border-primary/40 text-primary py-0 px-1.5 font-normal">
+                            Owner
+                          </Badge>
+                        )}
+                      </div>
                       {barber.linkedEmail ? (
                         <p className="text-[11px] font-mono text-primary truncate max-w-[160px]" title={barber.linkedEmail}>
                           {barber.linkedEmail}
@@ -398,7 +471,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                       {barber.is_active ? "Active" : "Inactive"}
                     </Badge>
                     <Badge variant={isLinked ? "info" : "outline"} className="text-[10px]">
-                      {isLinked ? "Linked Login" : "Unlinked Staff"}
+                      {isLinked ? (isOwnerBarber ? "Admin Login" : "Linked Login") : "Unlinked Staff"}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -440,6 +513,16 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                           >
                             <KeyRound className="size-3" />
                             <span>Reset Password</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => handleOpenEmailModal(barber)}
+                            className="gap-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted"
+                            title={isOwnerBarber ? "Change Admin / Barber Login Email" : "Change Barber Login Email"}
+                          >
+                            <AtSign className="size-3 text-primary" />
+                            <span>Email</span>
                           </Button>
                           <Button
                             variant="ghost"
@@ -620,6 +703,88 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
         </div>
       )}
 
+      {/* Change Login Email Modal */}
+      {emailBarber && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-sm border border-border bg-background p-6 shadow-2xl space-y-5">
+            <div className="border-b border-border pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <AtSign className="size-5 text-primary shrink-0" />
+                <h2 className="text-lg font-bold font-serif truncate">
+                  Change Login Email: {emailBarber.name}
+                </h2>
+                {ownerUserId && emailBarber.user_id === ownerUserId && (
+                  <Badge variant="outline" className="text-[10px] border-primary/40 text-primary shrink-0 py-0.5 font-normal">
+                    Admin / Owner
+                  </Badge>
+                )}
+              </div>
+              <Button variant="ghost" size="xs" onClick={() => setEmailBarber(null)}>
+                ✕
+              </Button>
+            </div>
+
+            <div className="rounded-sm border border-border bg-muted/40 px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Current: </span>
+              <span className="font-mono text-foreground break-all">{emailBarber.linkedEmail || "—"}</span>
+            </div>
+
+            {emailStatus && (
+              <div
+                className={`p-3 text-xs rounded-sm border flex items-start gap-2 ${
+                  emailStatus.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                    : "bg-destructive/10 border-destructive/20 text-destructive"
+                }`}
+              >
+                {emailStatus.type === "success" ? (
+                  <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                )}
+                <span>{emailStatus.msg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangeEmailSubmit} className="space-y-4 text-sm">
+              <div className="space-y-1.5">
+                <Label htmlFor="new_barber_email" className="text-xs uppercase tracking-wider font-semibold">
+                  New Login Email *
+                </Label>
+                <Input
+                  id="new_barber_email"
+                  type="email"
+                  value={newBarberEmail}
+                  onChange={(e) => setNewBarberEmail(e.target.value)}
+                  placeholder="barber@example.com"
+                  disabled={isChangingEmail}
+                  required
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {ownerUserId && emailBarber.user_id === ownerUserId
+                    ? "Your password stays unchanged. You will sign in with this new email immediately, and atelier appointment alerts will be routed here."
+                    : "The barber keeps their password and signs in with the new email immediately. All notifications will be delivered to this address."}
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button variant="outline" size="sm" type="button" onClick={() => setEmailBarber(null)}>
+                  {emailStatus?.type === "success" ? "Done" : "Cancel"}
+                </Button>
+                <Button size="sm" type="submit" disabled={isChangingEmail} className="gap-2">
+                  {isChangingEmail ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <AtSign className="size-4" />
+                  )}
+                  <span>{isChangingEmail ? "Updating..." : "Change Email"}</span>
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Password Reset Modal */}
       {resetBarber && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs animate-in fade-in">
@@ -745,6 +910,68 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                   required
                 />
               </div>
+
+              {editingBarber && (
+                <div className="rounded-sm border border-border bg-muted/30 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                      <AtSign className="size-3.5 text-primary" />
+                      Login Account Email
+                    </span>
+                    {ownerUserId && editingBarber.user_id === ownerUserId && (
+                      <Badge variant="outline" className="text-[10px] border-primary/40 text-primary font-normal">
+                        Admin / Owner
+                      </Badge>
+                    )}
+                  </div>
+
+                  {editingBarber.linkedEmail ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-border/50">
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-muted-foreground">Current Sign-in Email:</p>
+                        <p className="text-xs font-mono text-foreground font-medium truncate">
+                          {editingBarber.linkedEmail}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => {
+                          setIsOpen(false);
+                          handleOpenEmailModal(editingBarber);
+                        }}
+                        className="gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10 shrink-0"
+                      >
+                        <AtSign className="size-3" />
+                        <span>Change Email</span>
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-border/50">
+                      <div>
+                        <p className="text-xs font-medium text-foreground">No auth account connected</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Connect an email to allow this barber to log in and receive notifications.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => {
+                          setIsOpen(false);
+                          handleOpenInviteModal(editingBarber);
+                        }}
+                        className="gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10 shrink-0"
+                      >
+                        <Link2 className="size-3" />
+                        <span>Connect / Invite</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor="b_user_id" className="text-xs uppercase tracking-wider font-semibold">

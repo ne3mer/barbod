@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  AtSign,
 } from "lucide-react";
 
 import { signOutAction } from "@/app/admin/(dashboard)/actions";
@@ -32,6 +33,7 @@ type AdminShellProps = {
   businessName?: string | null;
   role?: "owner" | "staff";
   barberName?: string | null;
+  userEmail?: string | null;
 };
 
 type NavItem = {
@@ -67,6 +69,7 @@ export function AdminShell({
   businessName,
   role = "owner",
   barberName,
+  userEmail,
 }: AdminShellProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
@@ -129,6 +132,17 @@ export function AdminShell({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {userEmail && (
+              <Link
+                href={role === "staff" ? "/admin/profile" : "/admin/settings"}
+                className="hidden lg:inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted px-2.5 py-1 rounded-md border border-border/60 transition-colors"
+                title={`Signed in as ${userEmail} — Click to manage email & settings`}
+              >
+                <AtSign className="size-3 text-primary shrink-0" />
+                <span className="truncate max-w-[170px]">{userEmail}</span>
+              </Link>
+            )}
+
             <Link
               href="/"
               target="_blank"

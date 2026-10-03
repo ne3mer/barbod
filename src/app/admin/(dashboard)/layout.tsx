@@ -13,6 +13,7 @@ export default async function AdminDashboardLayout({
       businessName={context.business.name}
       role={context.role}
       barberName={context.barber?.name ?? null}
+      userEmail={context.user.email ?? null}
     >
       {children}
     </AdminShell>

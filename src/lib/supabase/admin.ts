@@ -27,7 +27,7 @@ export async function findAuthUserByEmail(email: string) {
   if (!adminClient) return { error: "Supabase Admin client not configured." };
 
   const targetEmail = email.trim().toLowerCase();
-  const { data, error } = await adminClient.auth.admin.listUsers();
+  const { data, error } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (error) return { error: error.message };
 
   const user = data.users.find((u) => u.email?.toLowerCase() === targetEmail);
@@ -83,6 +83,45 @@ export async function inviteNewUserByEmail(email: string, redirectTo: string) {
 
   if (error || !data.user) {
     return { error: error?.message || "Failed to invite new user by email." };
+  }
+
+  return { user: data.user };
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidEmail(email: string) {
+  return EMAIL_REGEX.test(email.trim());
+}
+
+/**
+ * Change the login email of an existing Supabase Auth user (server-only, service role).
+ * The new email is marked confirmed immediately because the change is performed by
+ * the authenticated business owner. Rejects emails already used by another account.
+ */
+export async function updateAuthUserEmail(userId: string, newEmail: string) {
+  const adminClient = createAdminClient();
+  if (!adminClient) return { error: "Supabase Admin client not configured (SUPABASE_SERVICE_ROLE_KEY missing)." };
+
+  const target = newEmail.trim().toLowerCase();
+  if (!isValidEmail(target)) return { error: "Please enter a valid email address." };
+
+  const { user: existing, error: lookupErr } = await findAuthUserByEmail(target);
+  if (lookupErr) return { error: `Auth lookup failed: ${lookupErr}` };
+  if (existing && existing.id !== userId) {
+    return { error: `The email ${target} is already used by another account.` };
+  }
+  if (existing && existing.id === userId) {
+    return { error: "This is already the current login email." };
+  }
+
+  const { data, error } = await adminClient.auth.admin.updateUserById(userId, {
+    email: target,
+    email_confirm: true,
+  });
+
+  if (error || !data.user) {
+    return { error: error?.message || "Failed to update login email." };
   }
 
   return { user: data.user };
