@@ -13,6 +13,19 @@ export default async function AdminWorkingHoursPage() {
 
   const supabase = await createClient();
 
+  // Load barbers for selector
+  let barbersQuery = supabase
+    .from("barbers")
+    .select("*")
+    .eq("business_id", business.id)
+    .order("display_order", { ascending: true });
+
+  if (isStaff) {
+    barbersQuery = barbersQuery.eq("id", context.barber!.id);
+  }
+
+  const { data: barbers } = await barbersQuery;
+
   let query = supabase
     .from("working_hours")
     .select("*")
@@ -30,6 +43,13 @@ export default async function AdminWorkingHoursPage() {
     console.error("Error loading working hours", error.message);
   }
 
-  return <WorkingHoursEditor initialRows={rows ?? []} />;
+  return (
+    <WorkingHoursEditor
+      initialRows={rows ?? []}
+      barbers={barbers ?? []}
+      isOwner={context.role === "owner"}
+      currentBarberId={context.barber?.id ?? null}
+    />
+  );
 }
 

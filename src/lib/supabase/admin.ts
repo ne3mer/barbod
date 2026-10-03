@@ -89,6 +89,28 @@ export async function inviteNewUserByEmail(email: string, redirectTo: string) {
 }
 
 /**
+ * Generate an invitation link for a new email via Supabase Auth Admin API without requiring SMTP.
+ */
+export async function generateInviteLink(email: string, redirectTo: string) {
+  const adminClient = createAdminClient();
+  if (!adminClient) return { error: "Supabase Admin client not configured." };
+
+  const { data, error } = await adminClient.auth.admin.generateLink({
+    type: "invite",
+    email: email.trim().toLowerCase(),
+    options: {
+      redirectTo,
+    },
+  });
+
+  if (error || !data.properties?.action_link) {
+    return { error: error?.message || "Failed to generate invite link." };
+  }
+
+  return { actionLink: data.properties.action_link, user: data.user };
+}
+
+/**
  * Triggers Supabase Auth to send a password reset / recovery email to the end user.
  * Uses adminClient.auth.resetPasswordForEmail() which dispatches the email via Supabase Auth email service.
  */

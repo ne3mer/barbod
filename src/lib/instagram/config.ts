@@ -8,9 +8,16 @@ export function getInstagramRedirectUri(): string {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
     return `${baseUrl}/api/auth/instagram/callback`;
   }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    const baseUrl = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/$/, "")}`;
+    return `${baseUrl}/api/auth/instagram/callback`;
+  }
   if (process.env.VERCEL_URL) {
     const baseUrl = `https://${process.env.VERCEL_URL.replace(/\/$/, "")}`;
     return `${baseUrl}/api/auth/instagram/callback`;
+  }
+  if (process.env.NODE_ENV === "production") {
+    return "https://barbod-gold.vercel.app/api/auth/instagram/callback";
   }
   return "http://localhost:3000/api/auth/instagram/callback";
 }

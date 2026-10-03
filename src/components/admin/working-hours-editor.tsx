@@ -32,40 +32,61 @@ function formatTimeForInput(timeStr: string): string {
   return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
 }
 
+interface WorkingHoursEditorProps {
+  initialRows: WorkingHoursRow[];
+  barbers?: Tables<"barbers">[];
+  isOwner?: boolean;
+  currentBarberId?: string | null;
+}
+
+function buildSchedulesForBarber(
+  rows: WorkingHoursRow[],
+  barberId?: string
+): DayScheduleInput[] {
+  return DAYS_CONFIG.map(({ day_of_week }) => {
+    const dayRows = rows.filter(
+      (r) =>
+        r.day_of_week === day_of_week &&
+        r.is_active &&
+        (!barberId || r.barber_id === barberId || !r.barber_id)
+    );
+
+    if (dayRows.length > 0) {
+      const intervals: IntervalInput[] = dayRows.map((r) => ({
+        start_time: formatTimeForInput(r.start_time),
+        end_time: formatTimeForInput(r.end_time),
+      }));
+      return { day_of_week, is_active: true, intervals };
+    }
+
+    if (day_of_week === 0) {
+      return {
+        day_of_week,
+        is_active: false,
+        intervals: [{ start_time: "15:00", end_time: "20:30" }],
+      };
+    } else {
+      return {
+        day_of_week,
+        is_active: true,
+        intervals: [{ start_time: "15:00", end_time: "20:30" }],
+      };
+    }
+  });
+}
+
 export function WorkingHoursEditor({
   initialRows,
-}: {
-  initialRows: WorkingHoursRow[];
-}) {
-  const [schedules, setSchedules] = React.useState<DayScheduleInput[]>(() => {
-    return DAYS_CONFIG.map(({ day_of_week }) => {
-      const dayRows = initialRows.filter(
-        (r) => r.day_of_week === day_of_week && r.is_active
-      );
+  barbers = [],
+  isOwner = false,
+  currentBarberId,
+}: WorkingHoursEditorProps) {
+  const defaultBarberId = currentBarberId || (barbers.length > 0 ? barbers[0].id : undefined);
+  const [selectedBarberId, setSelectedBarberId] = React.useState<string | undefined>(defaultBarberId);
 
-      if (dayRows.length > 0) {
-        const intervals: IntervalInput[] = dayRows.map((r) => ({
-          start_time: formatTimeForInput(r.start_time),
-          end_time: formatTimeForInput(r.end_time),
-        }));
-        return { day_of_week, is_active: true, intervals };
-      }
-
-      if (day_of_week === 0) {
-        return {
-          day_of_week,
-          is_active: false,
-          intervals: [{ start_time: "15:00", end_time: "20:30" }],
-        };
-      } else {
-        return {
-          day_of_week,
-          is_active: true,
-          intervals: [{ start_time: "15:00", end_time: "20:30" }],
-        };
-      }
-    });
-  });
+  const [schedules, setSchedules] = React.useState<DayScheduleInput[]>(() =>
+    buildSchedulesForBarber(initialRows, defaultBarberId)
+  );
 
   const [saving, setSaving] = React.useState(false);
   const [successMsg, setSuccessMsg] = React.useState<string | null>(null);
@@ -151,13 +172,18 @@ export function WorkingHoursEditor({
     setSuccessMsg(null);
     setErrorMsg(null);
 
-    const result = await saveWorkingHoursAction(schedules);
+    const result = await saveWorkingHoursAction(schedules, selectedBarberId);
     setSaving(false);
 
     if (result.error) {
       setErrorMsg(result.error);
     } else {
-      setSuccessMsg("Working hours saved successfully!");
+      const barberName = barbers.find((b) => b.id === selectedBarberId)?.name;
+      setSuccessMsg(
+        barberName
+          ? `Working hours for ${barberName} saved successfully!`
+          : "Working hours saved successfully!"
+      );
     }
   };
 
@@ -169,7 +195,7 @@ export function WorkingHoursEditor({
             Working Hours
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Configure your weekly schedule and break intervals in Europe/Budapest wall-clock time.
+            Configure weekly schedules and break intervals in Europe/Budapest wall-clock time.
           </p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0 font-semibold uppercase tracking-wider text-xs min-h-[38px] px-4">
@@ -177,6 +203,44 @@ export function WorkingHoursEditor({
           <span>{saving ? "Saving..." : "Save Schedule"}</span>
         </Button>
       </div>
+
+      {isOwner && barbers && barbers.length > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-border bg-card">
+          <div className="space-y-0.5">
+            <span className="text-xs font-mono uppercase tracking-wider text-primary font-semibold">
+              Barber Schedule Selection
+            </span>
+            <p className="text-xs text-muted-foreground">
+              Select which barber&apos;s working hours you want to view and configure.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {barbers.map((b) => {
+              const isSelected = (selectedBarberId || barbers[0]?.id) === b.id;
+              const isMain = b.id === currentBarberId;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedBarberId(b.id);
+                    setSchedules(buildSchedulesForBarber(initialRows, b.id));
+                    setSuccessMsg(null);
+                    setErrorMsg(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all border ${
+                    isSelected
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : "bg-muted/50 text-muted-foreground border-border hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {b.name} {isMain ? "(Main / Owner)" : ""}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {successMsg && (
         <div className="flex items-center gap-2 rounded-lg bg-emerald-500/15 p-4 text-sm text-emerald-500 border border-emerald-500/30">

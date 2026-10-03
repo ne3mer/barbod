@@ -7,9 +7,12 @@ import {
   findAuthUserByEmail,
   findAuthUserById,
   inviteNewUserByEmail,
+  generateInviteLink,
+  generatePasswordRecoveryLink,
   sendPasswordResetEmail,
 } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/auth/session";
+import { getCanonicalSiteUrl } from "@/lib/utils/url";
 import type { TablesUpdate } from "@/types/database";
 
 
@@ -236,7 +239,7 @@ export async function inviteOrConnectBarberAction(barberId: string, email: strin
     return { error: "Barber record not found." };
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = await getCanonicalSiteUrl();
   const resetRedirectUrl = `${siteUrl}/admin/reset-password`;
 
   // Check if auth user already exists for this email
@@ -272,9 +275,12 @@ export async function inviteOrConnectBarberAction(barberId: string, email: strin
       return { error: `Failed to link account to barber record: ${updateErr.message}` };
     }
 
+    // Generate action link so owner can view/copy link directly if needed
+    const linkRes = await generatePasswordRecoveryLink(trimmedEmail, resetRedirectUrl);
+
     // Send password setup / recovery email via Supabase Auth
     const emailRes = await sendPasswordResetEmail(trimmedEmail, resetRedirectUrl);
-    if (emailRes.error) {
+    if (emailRes.error && !linkRes.actionLink) {
       return {
         error: `Account linked successfully, but sending password setup email failed: ${emailRes.error}`,
       };
@@ -286,15 +292,20 @@ export async function inviteOrConnectBarberAction(barberId: string, email: strin
       mode: "connected" as const,
       email: trimmedEmail,
       userId: existingAuthUser.id,
+      actionLink: linkRes.actionLink || null,
     };
   } else {
     // CASE A: New Barber Email -> Invite
-    const inviteRes = await inviteNewUserByEmail(trimmedEmail, resetRedirectUrl);
-    if (inviteRes.error || !inviteRes.user) {
-      return { error: inviteRes.error || "Failed to send auth invitation email." };
-    }
+    // Generate direct invite action link
+    const linkRes = await generateInviteLink(trimmedEmail, resetRedirectUrl);
 
-    const newUserId = inviteRes.user.id;
+    // Also dispatch official invite email via Supabase Auth Admin API
+    const inviteRes = await inviteNewUserByEmail(trimmedEmail, resetRedirectUrl);
+
+    const newUserId = inviteRes.user?.id || linkRes.user?.id;
+    if (!newUserId) {
+      return { error: inviteRes.error || linkRes.error || "Failed to create auth invitation." };
+    }
 
     // Link newly invited user_id to barber
     const { error: updateErr } = await supabase
@@ -305,7 +316,7 @@ export async function inviteOrConnectBarberAction(barberId: string, email: strin
 
     if (updateErr) {
       return {
-        error: `Invitation sent, but failed to link account to barber record: ${updateErr.message}`,
+        error: `Invitation created, but failed to link account to barber record: ${updateErr.message}`,
       };
     }
 
@@ -315,6 +326,7 @@ export async function inviteOrConnectBarberAction(barberId: string, email: strin
       mode: "invited" as const,
       email: trimmedEmail,
       userId: newUserId,
+      actionLink: linkRes.actionLink || null,
     };
   }
 }
@@ -346,11 +358,14 @@ export async function sendBarberPasswordResetAction(barberId: string) {
     return { error: authUserRes.error || "Linked Auth user not found." };
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = await getCanonicalSiteUrl();
   const resetRedirectUrl = `${siteUrl}/admin/reset-password`;
 
+  // Generate direct link for owner convenience
+  const linkRes = await generatePasswordRecoveryLink(authUserRes.user.email, resetRedirectUrl);
+
   const emailRes = await sendPasswordResetEmail(authUserRes.user.email, resetRedirectUrl);
-  if (emailRes.error) {
+  if (emailRes.error && !linkRes.actionLink) {
     return { error: emailRes.error };
   }
 
@@ -358,6 +373,7 @@ export async function sendBarberPasswordResetAction(barberId: string) {
   return {
     success: true,
     email: authUserRes.user.email,
+    actionLink: linkRes.actionLink || null,
   };
 }
 

@@ -17,6 +17,8 @@ import {
   Link2,
   Unlink,
   KeyRound,
+  Copy,
+  Check,
 } from "lucide-react";
 
 import type { Tables } from "@/types/database";
@@ -81,7 +83,9 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
   const [inviteStatus, setInviteStatus] = React.useState<{
     type: "success" | "error";
     msg: string;
+    link?: string | null;
   } | null>(null);
+  const [copiedInviteLink, setCopiedInviteLink] = React.useState(false);
 
   // Reset Password Dialog State
   const [resetBarber, setResetBarber] = React.useState<BarberWithServices | null>(null);
@@ -89,12 +93,15 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
   const [resetStatus, setResetStatus] = React.useState<{
     type: "success" | "error";
     msg: string;
+    link?: string | null;
   } | null>(null);
+  const [copiedResetLink, setCopiedResetLink] = React.useState(false);
 
   const handleOpenInviteModal = (barber: BarberWithServices) => {
     setInvitingBarber(barber);
     setInviteEmail(barber.linkedEmail || "");
     setInviteStatus(null);
+    setCopiedInviteLink(false);
   };
 
   const handleSendInviteSubmit = async (e: React.FormEvent) => {
@@ -102,6 +109,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
     if (!invitingBarber || !inviteEmail.trim()) return;
     setIsSendingInvite(true);
     setInviteStatus(null);
+    setCopiedInviteLink(false);
 
     const res = await inviteOrConnectBarberAction(invitingBarber.id, inviteEmail);
     setIsSendingInvite(false);
@@ -112,12 +120,14 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
       if (res.mode === "connected") {
         setInviteStatus({
           type: "success",
-          msg: `Account (${res.email}) linked! Password setup email dispatched by Supabase Auth.`,
+          msg: `Account (${res.email}) linked! Password setup email dispatched with real website link.`,
+          link: res.actionLink,
         });
       } else {
         setInviteStatus({
           type: "success",
-          msg: `Auth invitation email sent to ${res.email}! Account created & linked.`,
+          msg: `Auth invitation email sent to ${res.email}! Account created & linked with real website link.`,
+          link: res.actionLink,
         });
       }
     }
@@ -126,6 +136,7 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
   const handleSendPasswordReset = async (barber: BarberWithServices) => {
     setResetBarber(barber);
     setResetStatus(null);
+    setCopiedResetLink(false);
     setIsSendingReset(true);
 
     const res = await sendBarberPasswordResetAction(barber.id);
@@ -136,7 +147,8 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
     } else {
       setResetStatus({
         type: "success",
-        msg: `Password reset email dispatched to ${res.email} by Supabase Auth!`,
+        msg: `Password reset email dispatched to ${res.email} with real website link!`,
+        link: res.actionLink,
       });
     }
   };
@@ -508,19 +520,65 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
             </p>
 
             {inviteStatus && (
-              <div
-                className={`p-3 text-xs rounded-sm border flex items-start gap-2 ${
-                  inviteStatus.type === "success"
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
-                    : "bg-destructive/10 border-destructive/20 text-destructive"
-                }`}
-              >
-                {inviteStatus.type === "success" ? (
-                  <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
+              <div className="space-y-3">
+                <div
+                  className={`p-3 text-xs rounded-sm border flex items-start gap-2 ${
+                    inviteStatus.type === "success"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                      : "bg-destructive/10 border-destructive/20 text-destructive"
+                  }`}
+                >
+                  {inviteStatus.type === "success" ? (
+                    <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                  )}
+                  <span>{inviteStatus.msg}</span>
+                </div>
+
+                {inviteStatus.link && (
+                  <div className="space-y-1.5 rounded-sm bg-muted/60 p-3 border border-border">
+                    <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      <Link2 className="size-3.5 text-primary" />
+                      Direct Setup Link (Real Website)
+                    </span>
+                    <p className="text-[11px] text-muted-foreground">
+                      You can copy this link and send it directly to the barber via WhatsApp, SMS, or email:
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Input
+                        readOnly
+                        value={inviteStatus.link}
+                        className="text-xs font-mono bg-background select-all h-8"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          if (inviteStatus.link) {
+                            navigator.clipboard.writeText(inviteStatus.link);
+                            setCopiedInviteLink(true);
+                            setTimeout(() => setCopiedInviteLink(false), 2500);
+                          }
+                        }}
+                        className="shrink-0 gap-1.5 text-xs h-8 px-3"
+                      >
+                        {copiedInviteLink ? (
+                          <>
+                            <Check className="size-3 text-emerald-500" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="size-3" />
+                            <span>Copy Link</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 )}
-                <span>{inviteStatus.msg}</span>
               </div>
             )}
 
@@ -599,6 +657,50 @@ export function BarbersManager({ barbers, allServices }: BarbersManagerProps) {
                   )}
                   <span>{resetStatus.msg}</span>
                 </div>
+
+                {resetStatus.link && (
+                  <div className="space-y-1.5 rounded-sm bg-muted/60 p-3 border border-border">
+                    <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      <Link2 className="size-3.5 text-primary" />
+                      Direct Reset Link (Real Website)
+                    </span>
+                    <p className="text-[11px] text-muted-foreground">
+                      You can copy this link and send it directly to the barber:
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Input
+                        readOnly
+                        value={resetStatus.link}
+                        className="text-xs font-mono bg-background select-all h-8"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          if (resetStatus.link) {
+                            navigator.clipboard.writeText(resetStatus.link);
+                            setCopiedResetLink(true);
+                            setTimeout(() => setCopiedResetLink(false), 2500);
+                          }
+                        }}
+                        className="shrink-0 gap-1.5 text-xs h-8 px-3"
+                      >
+                        {copiedResetLink ? (
+                          <>
+                            <Check className="size-3 text-emerald-500" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="size-3" />
+                            <span>Copy Link</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-end pt-2 border-t border-border">
                   <Button size="sm" onClick={() => setResetBarber(null)}>
