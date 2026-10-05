@@ -30,8 +30,14 @@ export function SiteFooter() {
             <Link href="/#services" className="hover:text-primary transition-colors">
               {t.navServices}
             </Link>
+            <Link href="/#barbers" className="hover:text-primary transition-colors">
+              {t.navBarbers}
+            </Link>
             <Link href="/#portfolio" className="hover:text-primary transition-colors">
               {t.navPortfolio}
+            </Link>
+            <Link href="/#reviews" className="hover:text-primary transition-colors">
+              {t.navReviews}
             </Link>
             <Link href="/#hours" className="hover:text-primary transition-colors">
               {t.navHours}

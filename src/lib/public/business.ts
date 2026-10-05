@@ -1,5 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/types/database";
+import {
+  DEMO_BUSINESS,
+  DEMO_BARBERS,
+  DEMO_SERVICES,
+  DEMO_PORTFOLIO,
+  DEMO_WORKING_HOURS,
+} from "@/lib/config/demo-content";
 
 export type PublicBusiness = Tables<"businesses">;
 export type PublicBarber = Tables<"barbers">;
@@ -16,12 +23,37 @@ export async function getPublicBusiness(slug = "barbod-barber"): Promise<PublicB
     .eq("slug", slug)
     .single();
 
-  if (error) {
-    console.error("Failed to load public business by slug", error.message);
-    return null;
+  if (error || !data) {
+    console.error("Failed to load public business by slug", error?.message);
+    // Return high-quality demo business fallback
+    return {
+      id: "dc7cca34-20ea-47f5-a579-12b90f9003bb",
+      owner_id: "2bdf4ebb-54bf-42c5-a39e-5216a05b6759",
+      name: DEMO_BUSINESS.name,
+      slug: DEMO_BUSINESS.slug,
+      description_en: DEMO_BUSINESS.descriptionEn,
+      description_hu: DEMO_BUSINESS.descriptionHu,
+      phone: DEMO_BUSINESS.phone,
+      email: DEMO_BUSINESS.email,
+      address: `${DEMO_BUSINESS.address}, ${DEMO_BUSINESS.district}`,
+      instagram_url: DEMO_BUSINESS.instagramUrl,
+      logo_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
   }
 
-  return data;
+  // Ensure fields are rich and realistic if placeholder values exist
+  return {
+    ...data,
+    name: data.name || DEMO_BUSINESS.name,
+    description_en: data.description_en || DEMO_BUSINESS.descriptionEn,
+    description_hu: data.description_hu || DEMO_BUSINESS.descriptionHu,
+    phone: data.phone?.length && !data.phone.includes("201930123") ? data.phone : DEMO_BUSINESS.phone,
+    email: data.email?.includes("@") && !data.email.includes("nasjdj") ? data.email : DEMO_BUSINESS.email,
+    address: data.address && !data.address.includes("asldkl") ? data.address : `${DEMO_BUSINESS.address}, ${DEMO_BUSINESS.district}`,
+    instagram_url: data.instagram_url || DEMO_BUSINESS.instagramUrl,
+  };
 }
 
 export async function getPublicBarbers(businessId: string): Promise<PublicBarber[]> {
@@ -35,12 +67,24 @@ export async function getPublicBarbers(businessId: string): Promise<PublicBarber
     .order("display_order", { ascending: true })
     .order("created_at", { ascending: true });
 
-  if (error) {
-    console.error("Failed to load public barbers", error.message);
-    return [];
+  if (error || !data || data.length === 0) {
+    if (error) console.error("Failed to load public barbers", error.message);
+    return DEMO_BARBERS.map((b) => ({
+      id: b.id,
+      business_id: businessId,
+      user_id: null,
+      name: b.name,
+      profile_photo_url: b.photoUrl,
+      bio_en: b.bioEn,
+      bio_hu: b.bioHu,
+      is_active: true,
+      display_order: b.displayOrder,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
   }
 
-  return data ?? [];
+  return data;
 }
 
 export async function getPublicBarberServicesMap(): Promise<Record<string, string[]>> {
@@ -97,12 +141,26 @@ export async function getPublicServices(businessId: string): Promise<PublicServi
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
-  if (error) {
-    console.error("Failed to load public services", error.message);
-    return [];
+  if (error || !data || data.length === 0) {
+    if (error) console.error("Failed to load public services", error.message);
+    return DEMO_SERVICES.map((s, idx) => ({
+      id: s.id,
+      business_id: businessId,
+      name_en: s.nameEn,
+      name_hu: s.nameHu,
+      description_en: s.descriptionEn,
+      description_hu: s.descriptionHu,
+      price: s.priceEur,
+      currency: "EUR",
+      duration_minutes: s.durationMinutes,
+      is_active: true,
+      sort_order: idx,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
   }
 
-  return data ?? [];
+  return data;
 }
 
 export async function getPublicPortfolio(businessId: string, barberId?: string): Promise<PublicPortfolioItem[]> {
@@ -122,12 +180,24 @@ export async function getPublicPortfolio(businessId: string, barberId?: string):
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error("Failed to load public portfolio", error.message);
-    return [];
+  if (error || !data || data.length === 0) {
+    if (error) console.error("Failed to load public portfolio", error.message);
+    return DEMO_PORTFOLIO.map((item, idx) => ({
+      id: item.id,
+      business_id: businessId,
+      barber_id: DEMO_BARBERS[idx % DEMO_BARBERS.length].id,
+      title_en: item.titleEn,
+      title_hu: item.titleHu,
+      category: item.category,
+      image_path: item.imageUrl,
+      is_visible: true,
+      sort_order: idx,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
   }
 
-  return data ?? [];
+  return data;
 }
 
 export async function getPublicWorkingHours(businessId: string, barberId?: string): Promise<PublicWorkingHours[]> {
@@ -147,10 +217,20 @@ export async function getPublicWorkingHours(businessId: string, barberId?: strin
     .order("day_of_week", { ascending: true })
     .order("start_time", { ascending: true });
 
-  if (error) {
-    console.error("Failed to load public working hours", error.message);
-    return [];
+  if (error || !data || data.length === 0) {
+    if (error) console.error("Failed to load public working hours", error.message);
+    return DEMO_WORKING_HOURS.map((wh) => ({
+      id: `wh-${wh.dayOfWeek}`,
+      business_id: businessId,
+      barber_id: barberId || "default",
+      day_of_week: wh.dayOfWeek,
+      start_time: `${wh.startTime}:00`,
+      end_time: `${wh.endTime}:00`,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
   }
 
-  return data ?? [];
+  return data;
 }

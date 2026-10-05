@@ -30,6 +30,18 @@ import {
   fetchAvailableSlotsAction,
   createPublicBookingAction,
 } from "@/app/(site)/book/actions";
+import { DEMO_SERVICES } from "@/lib/config/demo-content";
+
+function getServiceCategory(svc: PublicService): string {
+  const match = DEMO_SERVICES.find(
+    (ds) => ds.id === svc.id || ds.nameEn.toLowerCase() === svc.name_en.toLowerCase()
+  );
+  if (match) return match.category;
+  const name = svc.name_en.toLowerCase();
+  if (name.includes("beard") || name.includes("shave")) return "Beard";
+  if (name.includes("package") || name.includes("experience") || name.includes("grooming")) return "Grooming Packages";
+  return "Haircut";
+}
 
 export type ConfirmedBookingSummary = {
   id: string;
@@ -108,6 +120,38 @@ export function BookingFlow({
   // Confirmed booking summary state
   const [confirmedBooking, setConfirmedBooking] = React.useState<ConfirmedBookingSummary | null>(null);
 
+  // Category filter state for Step 2
+  const [selectedCategory, setSelectedCategory] = React.useState<string>("all");
+
+  // Dual pricing calculation helper
+  const formatDualPrice = React.useCallback((eur: number) => {
+    const huf = Math.round((eur * 395) / 500) * 500;
+    return {
+      eur: `€${eur}`,
+      huf: `${new Intl.NumberFormat("hu-HU").format(huf)} HUF`,
+    };
+  }, []);
+
+  // Upcoming 7 days quick chips
+  const upcomingDays = React.useMemo(() => {
+    const days = [];
+    const now = new Date();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      const iso = d.toISOString().split("T")[0];
+      const weekday = d.toLocaleDateString(lang === "hu" ? "hu-HU" : "en-US", { weekday: "short" });
+      const dayNum = d.getDate();
+      const month = d.toLocaleDateString(lang === "hu" ? "hu-HU" : "en-US", { month: "short" });
+      days.push({
+        iso,
+        title: i === 0 ? (lang === "hu" ? "Ma" : "Today") : i === 1 ? (lang === "hu" ? "Holnap" : "Tomorrow") : weekday,
+        sub: `${dayNum} ${month}`,
+      });
+    }
+    return days;
+  }, [lang]);
+
   // Filter available services for selected barber
   const availableServicesForBarber = React.useMemo(() => {
     if (!selectedBarber) return [];
@@ -117,6 +161,24 @@ export function BookingFlow({
     }
     return services.filter((s) => assignedIds.includes(s.id));
   }, [selectedBarber, services, barberServicesMap, barbers]);
+
+  // Available categories for selected barber
+  const categoriesForBarber = React.useMemo(() => {
+    const cats = new Set<string>();
+    availableServicesForBarber.forEach((s) => {
+      const cat = getServiceCategory(s);
+      if (cat) cats.add(cat);
+    });
+    return Array.from(cats);
+  }, [availableServicesForBarber]);
+
+  // Filtered services based on selected category
+  const filteredServices = React.useMemo(() => {
+    if (selectedCategory === "all") return availableServicesForBarber;
+    return availableServicesForBarber.filter(
+      (s) => getServiceCategory(s).toLowerCase() === selectedCategory.toLowerCase()
+    );
+  }, [availableServicesForBarber, selectedCategory]);
 
   // Load available slots asynchronously when barber, service, or date changes
   React.useEffect(() => {
@@ -153,14 +215,19 @@ export function BookingFlow({
 
   const handleSelectBarber = (barber: PublicBarber) => {
     setSelectedBarber(barber);
+    const assignedIds = barberServicesMap[barber.id] || [];
     if (selectedService) {
-      const assignedIds = barberServicesMap[barber.id] || [];
       if (assignedIds.length > 0 && !assignedIds.includes(selectedService.id)) {
         setSelectedService(null);
+        setStep(2);
+      } else {
+        // Pre-selected service is offered by this barber; jump directly to Date & Time
+        setStep(3);
       }
+    } else {
+      setStep(2);
     }
     setErrorMsg(null);
-    setStep(2);
   };
 
   const handleSelectService = (svc: PublicService) => {
@@ -428,19 +495,52 @@ export function BookingFlow({
             </h2>
           </div>
 
+          {/* Category Tabs */}
+          {categoriesForBarber.length > 1 && (
+            <div className="flex flex-wrap gap-2 pb-1">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory("all")}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider transition-all ${
+                  selectedCategory === "all"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-sm"
+                    : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground border border-white/10"
+                }`}
+              >
+                {lang === "hu" ? "Összes" : "All"} ({availableServicesForBarber.length})
+              </button>
+              {categoriesForBarber.map((cat) => {
+                const count = availableServicesForBarber.filter((s) => getServiceCategory(s).toLowerCase() === cat.toLowerCase()).length;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat.toLowerCase())}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider transition-all ${
+                      selectedCategory === cat.toLowerCase()
+                        ? "bg-primary text-primary-foreground font-semibold shadow-sm"
+                        : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground border border-white/10"
+                    }`}
+                  >
+                    {cat} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div className="divide-y divide-white/10 border-t border-b border-white/10">
-            {availableServicesForBarber.length === 0 ? (
+            {filteredServices.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground font-light">
-                {lang === "hu" ? "Nincs elérhető szolgáltatás ehhez a borbélyhoz." : "No services available for this barber."}
+                {lang === "hu" ? "Nincs elérhető szolgáltatás ebben a kategóriában." : "No services found in this category."}
               </div>
             ) : (
-              availableServicesForBarber.map((svc, idx) => {
+              filteredServices.map((svc, idx) => {
                 const name = getLocalizedField(svc, "name", lang);
                 const desc = getLocalizedField(svc, "description", lang);
                 const isSelected = selectedService?.id === svc.id;
-                const priceFormatted = new Intl.NumberFormat(
-                  lang === "hu" ? "hu-HU" : "en-US"
-                ).format(svc.price);
+                const category = getServiceCategory(svc);
+                const { eur, huf } = formatDualPrice(svc.price);
                 const indexStr = String(idx + 1).padStart(2, "0");
 
                 return (
@@ -459,9 +559,16 @@ export function BookingFlow({
                       </span>
 
                       <div className="space-y-1 max-w-lg">
-                        <h3 className="text-lg sm:text-xl font-normal text-foreground font-serif group-hover:text-primary transition-colors">
-                          {name}
-                        </h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-lg sm:text-xl font-normal text-foreground font-serif group-hover:text-primary transition-colors">
+                            {name}
+                          </h3>
+                          {category && (
+                            <Badge variant="outline" className="text-[10px] font-mono border-white/15 text-muted-foreground py-0 px-2 font-normal">
+                              {category}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground leading-relaxed font-light">
                           {desc || t.defaultServiceDesc}
                         </p>
@@ -474,7 +581,10 @@ export function BookingFlow({
                           {svc.duration_minutes} {t.duration}
                         </div>
                         <div className="text-base font-sans font-bold text-primary mt-0.5">
-                          {priceFormatted} {svc.currency}
+                          {eur}
+                          <span className="text-xs font-mono font-normal text-muted-foreground ml-1.5">
+                            · {huf}
+                          </span>
                         </div>
                       </div>
 
@@ -508,7 +618,7 @@ export function BookingFlow({
               <div>
                 <span className="eyebrow block text-[10px]">{t.selectedServiceLabel}</span>
                 <p className="text-sm font-serif text-foreground font-medium">
-                  {getLocalizedField(selectedService, "name", lang)} ({selectedService.duration_minutes}m)
+                  {getLocalizedField(selectedService, "name", lang)} ({selectedService.duration_minutes}m · {formatDualPrice(selectedService.price).eur})
                 </p>
               </div>
             </div>
@@ -531,18 +641,47 @@ export function BookingFlow({
                 {t.step2Title}
               </h2>
 
-              <div className="space-y-2">
-                <Label htmlFor="date_picker" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="space-y-3">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t.dateLabel}
                 </Label>
-                <Input
-                  id="date_picker"
-                  type="date"
-                  min={todayStr}
-                  value={selectedDate}
-                  onChange={handleDateChange}
-                  className="w-full text-base font-mono h-12 bg-card/90 border-white/15 focus:border-primary px-3 rounded-lg"
-                />
+
+                {/* Quick Date Chips */}
+                <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-4 gap-2">
+                  {upcomingDays.map((day) => {
+                    const isDaySelected = selectedDate === day.iso;
+                    return (
+                      <button
+                        key={day.iso}
+                        type="button"
+                        onClick={() => setSelectedDate(day.iso)}
+                        className={`p-2.5 rounded-lg border text-center transition-all cursor-pointer ${
+                          isDaySelected
+                            ? "border-primary bg-primary text-primary-foreground shadow-md ring-1 ring-primary font-semibold"
+                            : "border-white/10 bg-card hover:border-primary/50 text-foreground hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <span className="block text-[11px] font-mono uppercase tracking-wider">
+                          {day.title}
+                        </span>
+                        <span className={`block text-xs mt-0.5 ${isDaySelected ? "text-primary-foreground/90" : "text-muted-foreground"}`}>
+                          {day.sub}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2">
+                  <Input
+                    id="date_picker"
+                    type="date"
+                    min={todayStr}
+                    value={selectedDate}
+                    onChange={handleDateChange}
+                    className="w-full text-base font-mono h-11 bg-card/90 border-white/15 focus:border-primary px-3 rounded-lg"
+                  />
+                </div>
               </div>
             </div>
 
@@ -726,9 +865,14 @@ export function BookingFlow({
                   {getLocalizedField(selectedService, "name", lang)}
                 </h3>
               </div>
-              <span className="text-2xl font-bold font-sans text-primary">
-                {selectedService.price} {selectedService.currency}
-              </span>
+              <div className="text-right">
+                <span className="text-2xl font-bold font-sans text-primary">
+                  {formatDualPrice(selectedService.price).eur}
+                </span>
+                <span className="block text-xs font-mono text-muted-foreground mt-0.5">
+                  {formatDualPrice(selectedService.price).huf}
+                </span>
+              </div>
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2 text-sm">
@@ -869,7 +1013,10 @@ export function BookingFlow({
             <div className="flex justify-between text-sm py-1">
               <span className="text-muted-foreground">{t.priceLabel}:</span>
               <span className="font-bold text-primary font-sans text-base">
-                {confirmedBooking.price} {confirmedBooking.currency}
+                €{confirmedBooking.price}
+                <span className="text-xs font-mono font-normal text-muted-foreground ml-1.5">
+                  · {formatDualPrice(confirmedBooking.price).huf}
+                </span>
               </span>
             </div>
           </div>

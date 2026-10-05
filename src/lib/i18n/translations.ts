@@ -5,7 +5,9 @@ export const translations = {
     // Navigation & Header
     brand: "Barbod Barber",
     navServices: "Services",
+    navBarbers: "Barbers",
     navPortfolio: "Portfolio",
+    navReviews: "Reviews",
     navAbout: "About",
     navHours: "Hours & Location",
     bookNow: "Book Appointment",
@@ -113,7 +115,9 @@ export const translations = {
     // Navigation & Header
     brand: "Barbod Barber",
     navServices: "Szolgáltatások",
+    navBarbers: "Borbélyok",
     navPortfolio: "Portfólió",
+    navReviews: "Vélemények",
     navAbout: "Rólunk",
     navHours: "Nyitvatartás & Kapcsolat",
     bookNow: "Időpontfoglalás",

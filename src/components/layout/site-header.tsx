@@ -44,12 +44,18 @@ export function SiteHeader() {
 
         <nav className="flex items-center gap-2 sm:gap-4 shrink-0">
           {/* Desktop Anchor Links */}
-          <div className="hidden md:flex items-center gap-6 lg:gap-8 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+          <div className="hidden md:flex items-center gap-5 lg:gap-7 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
             <Link href="/#services" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
               {t.navServices}
             </Link>
+            <Link href="/#barbers" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
+              {lang === "hu" ? "Borbélyok" : "Barbers"}
+            </Link>
             <Link href="/#portfolio" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
               {t.navPortfolio}
+            </Link>
+            <Link href="/#reviews" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
+              {lang === "hu" ? "Vélemények" : "Reviews"}
             </Link>
             <Link href="/#hours" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary">
               {t.navHours}
@@ -107,11 +113,27 @@ export function SiteHeader() {
                 <ArrowRight className="size-3.5 opacity-50" />
               </Link>
               <Link
+                href="/#barbers"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 border-b border-white/5 text-muted-foreground hover:text-primary transition-colors flex items-center justify-between"
+              >
+                <span>{t.navBarbers}</span>
+                <ArrowRight className="size-3.5 opacity-50" />
+              </Link>
+              <Link
                 href="/#portfolio"
                 onClick={() => setMobileMenuOpen(false)}
                 className="py-2 border-b border-white/5 text-muted-foreground hover:text-primary transition-colors flex items-center justify-between"
               >
                 <span>{t.navPortfolio}</span>
+                <ArrowRight className="size-3.5 opacity-50" />
+              </Link>
+              <Link
+                href="/#reviews"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 border-b border-white/5 text-muted-foreground hover:text-primary transition-colors flex items-center justify-between"
+              >
+                <span>{t.navReviews}</span>
                 <ArrowRight className="size-3.5 opacity-50" />
               </Link>
               <Link
