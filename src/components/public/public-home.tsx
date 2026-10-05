@@ -577,7 +577,7 @@ export function PublicHome({
             <div className="space-y-3.5">
               {DAY_ORDER.map((dayNum) => {
                 const dayName = DAY_NAMES[dayNum][lang];
-                const dayRows = workingHours.filter((wh) => wh.day_of_week === dayNum);
+                const dayRow = workingHours.find((wh) => wh.day_of_week === dayNum && wh.is_active);
                 const isToday = new Date().getDay() === dayNum;
 
                 return (
@@ -599,17 +599,13 @@ export function PublicHome({
                         </Badge>
                       )}
                     </div>
-                    {dayRows.length === 0 ? (
+                    {!dayRow ? (
                       <Badge variant="outline" className="text-xs font-normal border-white/10 text-muted-foreground">
                         {t.closed}
                       </Badge>
                     ) : (
-                      <div className="text-right text-xs font-mono font-semibold text-primary space-y-0.5">
-                        {dayRows.map((row) => (
-                          <div key={row.id}>
-                            {row.start_time.slice(0, 5)} – {row.end_time.slice(0, 5)}
-                          </div>
-                        ))}
+                      <div className="text-right text-xs font-mono font-semibold text-primary">
+                        {dayRow.start_time.slice(0, 5)} – {dayRow.end_time.slice(0, 5)}
                       </div>
                     )}
                   </div>

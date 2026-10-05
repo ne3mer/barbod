@@ -513,7 +513,7 @@ export const DEMO_WORKING_HOURS: DemoWorkingDay[] = [
   { dayOfWeek: 4, dayNameEn: "Thursday", dayNameHu: "Csütörtök", startTime: "09:00", endTime: "20:00" },
   { dayOfWeek: 5, dayNameEn: "Friday", dayNameHu: "Péntek", startTime: "09:00", endTime: "20:00" },
   { dayOfWeek: 6, dayNameEn: "Saturday", dayNameHu: "Szombat", startTime: "10:00", endTime: "18:00" },
-  { dayOfWeek: 0, dayNameEn: "Sunday", dayNameHu: "Vasárnap", startTime: "10:00", endTime: "16:00" },
+  { dayOfWeek: 0, dayNameEn: "Sunday", dayNameHu: "Vasárnap", startTime: "", endTime: "", isClosed: true },
 ];
 
 export const DEMO_ATELIER_EXPERIENCE = [

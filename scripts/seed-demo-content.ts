@@ -232,13 +232,17 @@ async function seed() {
         .eq("day_of_week", wh.dayOfWeek)
         .maybeSingle();
 
+      const isClosed = Boolean(wh.isClosed);
+      const startTime = wh.startTime ? `${wh.startTime}:00` : "09:00:00";
+      const endTime = wh.endTime ? `${wh.endTime}:00` : "18:00:00";
+
       if (existingWh) {
         await supabase
           .from("working_hours")
           .update({
-            start_time: `${wh.startTime}:00`,
-            end_time: `${wh.endTime}:00`,
-            is_active: true,
+            start_time: startTime,
+            end_time: endTime,
+            is_active: !isClosed,
           })
           .eq("id", existingWh.id);
       } else {
@@ -246,9 +250,9 @@ async function seed() {
           business_id: business.id,
           barber_id: bId,
           day_of_week: wh.dayOfWeek,
-          start_time: `${wh.startTime}:00`,
-          end_time: `${wh.endTime}:00`,
-          is_active: true,
+          start_time: startTime,
+          end_time: endTime,
+          is_active: !isClosed,
         });
       }
     }

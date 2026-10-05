@@ -211,18 +211,41 @@ export async function getPublicWorkingHours(businessId: string, barberId?: strin
 
   if (barberId) {
     query = query.eq("barber_id", barberId);
+    const { data, error } = await query
+      .order("day_of_week", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      if (error) console.error("Failed to load barber working hours", error.message);
+      return DEMO_WORKING_HOURS.filter((wh) => !wh.isClosed).map((wh) => ({
+        id: `wh-${barberId}-${wh.dayOfWeek}`,
+        business_id: businessId,
+        barber_id: barberId,
+        day_of_week: wh.dayOfWeek,
+        start_time: `${wh.startTime}:00`,
+        end_time: `${wh.endTime}:00`,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+    }
+
+    return data;
   }
 
+  // Deduplicate at the data/query layer for public business-level display
+  // A barbershop is open on a day if at least one active barber has working hours on that day.
+  // The business opening span runs from the earliest start_time to the latest end_time.
   const { data, error } = await query
     .order("day_of_week", { ascending: true })
     .order("start_time", { ascending: true });
 
   if (error || !data || data.length === 0) {
     if (error) console.error("Failed to load public working hours", error.message);
-    return DEMO_WORKING_HOURS.map((wh) => ({
-      id: `wh-${wh.dayOfWeek}`,
+    return DEMO_WORKING_HOURS.filter((wh) => !wh.isClosed).map((wh) => ({
+      id: `business-wh-${wh.dayOfWeek}`,
       business_id: businessId,
-      barber_id: barberId || "default",
+      barber_id: "business",
       day_of_week: wh.dayOfWeek,
       start_time: `${wh.startTime}:00`,
       end_time: `${wh.endTime}:00`,
@@ -232,5 +255,45 @@ export async function getPublicWorkingHours(businessId: string, barberId?: strin
     }));
   }
 
-  return data;
+  // Group by day_of_week
+  const dayMap = new Map<number, PublicWorkingHours[]>();
+  for (const row of data) {
+    if (!dayMap.has(row.day_of_week)) {
+      dayMap.set(row.day_of_week, []);
+    }
+    dayMap.get(row.day_of_week)!.push(row);
+  }
+
+  const businessHours: PublicWorkingHours[] = [];
+
+  // Iterate over standard days 0 to 6 (Sunday=0, Monday=1, ... Saturday=6)
+  for (let day = 0; day <= 6; day++) {
+    const rows = dayMap.get(day);
+    if (!rows || rows.length === 0) {
+      // Day is closed (no active barbers scheduled)
+      continue;
+    }
+
+    let earliestStart = rows[0].start_time;
+    let latestEnd = rows[0].end_time;
+
+    for (const r of rows) {
+      if (r.start_time < earliestStart) earliestStart = r.start_time;
+      if (r.end_time > latestEnd) latestEnd = r.end_time;
+    }
+
+    businessHours.push({
+      id: `business-wh-${day}`,
+      business_id: businessId,
+      barber_id: "business",
+      day_of_week: day,
+      start_time: earliestStart,
+      end_time: latestEnd,
+      is_active: true,
+      created_at: rows[0].created_at,
+      updated_at: rows[0].updated_at,
+    });
+  }
+
+  return businessHours;
 }
