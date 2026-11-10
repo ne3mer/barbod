@@ -265,51 +265,85 @@ export function BarbersManager({ barbers, allServices, ownerUserId }: BarbersMan
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+    const ALLOWED_MIME_TYPES = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "image/avif",
+    ];
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      setPhotoError("Invalid file format. Only JPEG, PNG, and WEBP images are allowed.");
+      setPhotoError("Invalid file format. Only JPEG, PNG, WEBP, GIF, and AVIF images are allowed.");
+      if (e.target) e.target.value = "";
       return;
     }
 
-    const MAX_SIZE = 5 * 1024 * 1024;
+    const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      setPhotoError("File size exceeds 5 MB. Please choose a smaller image.");
+      setPhotoError("File size exceeds 10 MB. Please choose a smaller image.");
+      if (e.target) e.target.value = "";
       return;
     }
 
     setPhotoError(null);
 
     if (editingBarber) {
-      setUploadingPhoto(true);
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("barberId", editingBarber.id);
+      try {
+        setUploadingPhoto(true);
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("barberId", editingBarber.id);
 
-      const res = await uploadBarberProfilePhotoAction(formData);
-      setUploadingPhoto(false);
+        const res = await uploadBarberProfilePhotoAction(formData);
 
-      if (res.error) {
-        setPhotoError(res.error);
-      } else if (res.publicUrl) {
-        setProfilePhotoUrl(res.publicUrl);
+        if (res.error) {
+          setPhotoError(res.error);
+        } else if (res.publicUrl) {
+          setProfilePhotoUrl(res.publicUrl);
+          setBarberList((prev) =>
+            prev.map((b) =>
+              b.id === editingBarber.id ? { ...b, profile_photo_url: res.publicUrl } : b
+            )
+          );
+          setEditingBarber((prev) => (prev ? { ...prev, profile_photo_url: res.publicUrl } : null));
+          router.refresh();
+        }
+      } catch (err: unknown) {
+        console.error("Error uploading barber photo:", err);
+        setPhotoError(err instanceof Error ? err.message : "Failed to upload photo.");
+      } finally {
+        setUploadingPhoto(false);
+        if (e.target) e.target.value = "";
       }
     } else {
       setStagedFile(file);
       const previewUrl = URL.createObjectURL(file);
       setProfilePhotoUrl(previewUrl);
+      if (e.target) e.target.value = "";
     }
   };
 
   const handleRemovePhoto = async () => {
     setPhotoError(null);
     if (editingBarber) {
-      setUploadingPhoto(true);
-      const res = await deleteBarberProfilePhotoAction(editingBarber.id);
-      setUploadingPhoto(false);
-      if (res.error) {
-        setPhotoError(res.error);
-      } else {
-        setProfilePhotoUrl("");
+      try {
+        setUploadingPhoto(true);
+        const res = await deleteBarberProfilePhotoAction(editingBarber.id);
+        if (res.error) {
+          setPhotoError(res.error);
+        } else {
+          setProfilePhotoUrl("");
+          setBarberList((prev) =>
+            prev.map((b) => (b.id === editingBarber.id ? { ...b, profile_photo_url: null } : b))
+          );
+          setEditingBarber((prev) => (prev ? { ...prev, profile_photo_url: null } : null));
+          router.refresh();
+        }
+      } catch (err: unknown) {
+        console.error("Error removing barber photo:", err);
+        setPhotoError(err instanceof Error ? err.message : "Failed to remove photo.");
+      } finally {
+        setUploadingPhoto(false);
       }
     } else {
       setStagedFile(null);
@@ -332,56 +366,91 @@ export function BarbersManager({ barbers, allServices, ownerUserId }: BarbersMan
     setSubmitting(true);
     setErrorMsg(null);
 
-    const payload = {
-      name,
-      user_id: userId.trim() || null,
-      profile_photo_url: profilePhotoUrl,
-      bio_en: bioEn,
-      bio_hu: bioHu,
-      display_order: displayOrder,
-      is_active: isActive,
-      serviceIds: selectedServiceIds,
-    };
+    try {
+      const payload = {
+        name,
+        user_id: userId.trim() || null,
+        // Avoid persisting blob: preview urls to database
+        profile_photo_url: profilePhotoUrl.startsWith("blob:") ? null : profilePhotoUrl,
+        bio_en: bioEn,
+        bio_hu: bioHu,
+        display_order: displayOrder,
+        is_active: isActive,
+        serviceIds: selectedServiceIds,
+      };
 
-    if (editingBarber) {
-      const res = await updateBarberAction(editingBarber.id, payload);
-      setSubmitting(false);
+      if (editingBarber) {
+        const res = await updateBarberAction(editingBarber.id, payload);
 
-      if (res.error) {
-        setErrorMsg(res.error);
+        if (res.error) {
+          setErrorMsg(res.error);
+        } else {
+          setBarberList((prev) =>
+            prev.map((b) =>
+              b.id === editingBarber.id
+                ? {
+                    ...b,
+                    name,
+                    user_id: payload.user_id,
+                    profile_photo_url: payload.profile_photo_url,
+                    bio_en: bioEn,
+                    bio_hu: bioHu,
+                    display_order: displayOrder,
+                    is_active: isActive,
+                    assignedServiceIds: selectedServiceIds,
+                  }
+                : b
+            )
+          );
+          router.refresh();
+          setIsOpen(false);
+        }
       } else {
+        const res = await createBarberAction(payload);
+        if (res.error || !res.barber) {
+          setErrorMsg(res.error || "Failed to create barber.");
+          return;
+        }
+
+        if (stagedFile) {
+          const formData = new FormData();
+          formData.append("file", stagedFile);
+          formData.append("barberId", res.barber.id);
+          const uploadRes = await uploadBarberProfilePhotoAction(formData);
+          if (uploadRes.publicUrl) {
+            res.barber.profile_photo_url = uploadRes.publicUrl;
+          }
+        }
+
+        setBarberList((prev) => [...prev, { ...res.barber, assignedServiceIds: selectedServiceIds, linkedEmail: null }]);
+        router.refresh();
         setIsOpen(false);
       }
-    } else {
-      const res = await createBarberAction(payload);
-      if (res.error || !res.barber) {
-        setSubmitting(false);
-        setErrorMsg(res.error || "Failed to create barber.");
-        return;
-      }
-
-      if (stagedFile) {
-        const formData = new FormData();
-        formData.append("file", stagedFile);
-        formData.append("barberId", res.barber.id);
-        await uploadBarberProfilePhotoAction(formData);
-      }
-
+    } catch (err: unknown) {
+      console.error("Error submitting barber:", err);
+      setErrorMsg(err instanceof Error ? err.message : "An unexpected error occurred.");
+    } finally {
       setSubmitting(false);
-      setIsOpen(false);
     }
   };
 
   const handleToggleActive = async (barber: BarberWithServices) => {
-    await toggleBarberActiveAction(barber.id, !barber.is_active);
+    const nextActive = !barber.is_active;
+    setBarberList((prev) =>
+      prev.map((b) => (b.id === barber.id ? { ...b, is_active: nextActive } : b))
+    );
+    await toggleBarberActiveAction(barber.id, nextActive);
+    router.refresh();
   };
 
   const handleDelete = async (barber: BarberWithServices) => {
     if (!confirm(`Are you sure you want to delete ${barber.name}?`)) return;
+    setBarberList((prev) => prev.filter((b) => b.id !== barber.id));
     const res = await deleteBarberAction(barber.id);
-    if (res.error) {
+    if (res?.error) {
       alert(res.error);
     }
+    router.refresh();
   };
 
   return (
@@ -1025,7 +1094,7 @@ export function BarbersManager({ barbers, allServices, ownerUserId }: BarbersMan
                         )}
                         <input
                           type="file"
-                          accept="image/jpeg,image/png,image/webp"
+                          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                           disabled={uploadingPhoto}
                           onChange={handleFileSelect}
                           className="hidden"
@@ -1048,7 +1117,7 @@ export function BarbersManager({ barbers, allServices, ownerUserId }: BarbersMan
                     </div>
 
                     <p className="text-[11px] text-muted-foreground leading-tight">
-                      Allowed: JPEG, PNG, WEBP (Max size: 5 MB).
+                      Allowed: JPEG, PNG, WEBP, GIF, AVIF (Max size: 10 MB).
                     </p>
 
                     {photoError && (

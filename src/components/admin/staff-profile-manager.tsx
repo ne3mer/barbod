@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { User, Upload, Loader2, Save, CheckCircle2, AlertCircle } from "lucide-react";
 
 import type { Tables } from "@/types/database";
@@ -20,6 +21,7 @@ interface StaffProfileManagerProps {
 }
 
 export function StaffProfileManager({ barber }: StaffProfileManagerProps) {
+  const router = useRouter();
 
   const [name, setName] = React.useState(barber.name);
   const [bioEn, setBioEn] = React.useState(barber.bio_en || "");
@@ -36,48 +38,72 @@ export function StaffProfileManager({ barber }: StaffProfileManagerProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+    const ALLOWED_MIME_TYPES = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "image/avif",
+    ];
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      setPhotoError("Invalid file format. Only JPEG, PNG, and WEBP images are allowed.");
+      setPhotoError("Invalid file format. Only JPEG, PNG, WEBP, GIF, and AVIF images are allowed.");
+      if (e.target) e.target.value = "";
       return;
     }
 
-    const MAX_SIZE = 5 * 1024 * 1024;
+    const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      setPhotoError("File size exceeds 5 MB. Please choose a smaller image.");
+      setPhotoError("File size exceeds 10 MB. Please choose a smaller image.");
+      if (e.target) e.target.value = "";
       return;
     }
 
     setPhotoError(null);
-    setUploadingPhoto(true);
+    setStatusMsg(null);
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("barberId", barber.id);
+    try {
+      setUploadingPhoto(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("barberId", barber.id);
 
-    const res = await uploadBarberProfilePhotoAction(formData);
-    setUploadingPhoto(false);
+      const res = await uploadBarberProfilePhotoAction(formData);
 
-    if (res.error) {
-      setPhotoError(res.error);
-    } else if (res.publicUrl) {
-      setPhotoUrl(res.publicUrl);
-      setStatusMsg("Profile photo updated successfully.");
+      if (res.error) {
+        setPhotoError(res.error);
+      } else if (res.publicUrl) {
+        setPhotoUrl(res.publicUrl);
+        setStatusMsg("Profile photo updated successfully.");
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      console.error("Error uploading staff photo:", err);
+      setPhotoError(err instanceof Error ? err.message : "Failed to upload photo.");
+    } finally {
+      setUploadingPhoto(false);
+      if (e.target) e.target.value = "";
     }
   };
 
   const handleRemovePhoto = async () => {
     setPhotoError(null);
-    setUploadingPhoto(true);
+    setStatusMsg(null);
+    try {
+      setUploadingPhoto(true);
+      const res = await deleteBarberProfilePhotoAction(barber.id);
 
-    const res = await deleteBarberProfilePhotoAction(barber.id);
-    setUploadingPhoto(false);
-
-    if (res.error) {
-      setPhotoError(res.error);
-    } else {
-      setPhotoUrl("");
-      setStatusMsg("Profile photo removed.");
+      if (res.error) {
+        setPhotoError(res.error);
+      } else {
+        setPhotoUrl("");
+        setStatusMsg("Profile photo removed.");
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      console.error("Error removing staff photo:", err);
+      setPhotoError(err instanceof Error ? err.message : "Failed to remove photo.");
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -92,19 +118,25 @@ export function StaffProfileManager({ barber }: StaffProfileManagerProps) {
     setErrorMsg(null);
     setStatusMsg(null);
 
-    const res = await updateBarberAction(barber.id, {
-      name: name.trim(),
-      profile_photo_url: photoUrl,
-      bio_en: bioEn.trim() || null,
-      bio_hu: bioHu.trim() || null,
-    });
+    try {
+      const res = await updateBarberAction(barber.id, {
+        name: name.trim(),
+        profile_photo_url: photoUrl,
+        bio_en: bioEn.trim() || null,
+        bio_hu: bioHu.trim() || null,
+      });
 
-    setSubmitting(false);
-
-    if (res.error) {
-      setErrorMsg(res.error);
-    } else {
-      setStatusMsg("Profile updated successfully!");
+      if (res.error) {
+        setErrorMsg(res.error);
+      } else {
+        setStatusMsg("Profile updated successfully!");
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      console.error("Error updating staff profile:", err);
+      setErrorMsg(err instanceof Error ? err.message : "An unexpected error occurred.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -138,7 +170,7 @@ export function StaffProfileManager({ barber }: StaffProfileManagerProps) {
         <CardHeader>
           <CardTitle className="text-base font-serif">Profile Photo</CardTitle>
           <CardDescription className="text-xs">
-            Upload a high-quality portrait photo (JPEG, PNG, WEBP, max 5 MB).
+            Upload a high-quality portrait photo (JPEG, PNG, WEBP, GIF, AVIF, max 10 MB).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -166,7 +198,7 @@ export function StaffProfileManager({ barber }: StaffProfileManagerProps) {
                   <Input
                     id="staff_photo_upload"
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                     onChange={handleFileSelect}
                     disabled={uploadingPhoto}
                     className="hidden"

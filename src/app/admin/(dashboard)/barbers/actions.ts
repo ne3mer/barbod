@@ -29,148 +29,166 @@ export type BarberInput = {
 };
 
 export async function createBarberAction(input: BarberInput) {
-  const context = await getAdminContext();
-  if (!context || context.role !== "owner") {
-    return { error: "Unauthorized: Owner access required." };
+  try {
+    const context = await getAdminContext();
+    if (!context || context.role !== "owner") {
+      return { error: "Unauthorized: Owner access required." };
+    }
+
+    const business = context.business;
+
+    if (!input.name?.trim()) {
+      return { error: "Barber name is required." };
+    }
+
+    const adminClient = createAdminClient();
+    const supabase = await createClient();
+    const client = adminClient ?? supabase;
+
+    // 1. Insert Barber row
+    const { data: barber, error } = await client
+      .from("barbers")
+      .insert({
+        business_id: business.id,
+        user_id: input.user_id || null,
+        name: input.name.trim(),
+        profile_photo_url: input.profile_photo_url?.trim() || null,
+        bio_en: input.bio_en?.trim() || null,
+        bio_hu: input.bio_hu?.trim() || null,
+        is_active: input.is_active ?? true,
+        display_order: input.display_order ?? 0,
+      })
+      .select("*")
+      .single();
+
+    if (error || !barber) {
+      console.error("Failed to create barber", error?.message);
+      return { error: "Failed to create barber." };
+    }
+
+    // 2. Insert barber_services if provided
+    if (input.serviceIds && input.serviceIds.length > 0) {
+      const rows = input.serviceIds.map((serviceId) => ({
+        barber_id: barber.id,
+        service_id: serviceId,
+      }));
+
+      const { error: bsErr } = await client.from("barber_services").insert(rows);
+      if (bsErr) {
+        console.error("Failed to assign barber services", bsErr.message);
+      }
+    }
+
+    revalidatePath("/admin/barbers");
+    revalidatePath("/admin/appointments");
+    revalidatePath("/");
+    revalidatePath("/book");
+
+    return { success: true, barber };
+  } catch (err: unknown) {
+    console.error("Unexpected error in createBarberAction:", err);
+    return {
+      error: err instanceof Error ? err.message : "An unexpected server error occurred.",
+    };
   }
+}
 
-  const business = context.business;
+export async function updateBarberAction(id: string, input: BarberInput) {
+  try {
+    const context = await getAdminContext();
+    if (!context) {
+      return { error: "Unauthorized." };
+    }
 
-  if (!input.name?.trim()) {
-    return { error: "Barber name is required." };
-  }
+    const adminClient = createAdminClient();
+    const supabase = await createClient();
+    const client = adminClient ?? supabase;
 
-  const supabase = await createClient();
+    // Staff can update their own profile fields via staff profile route
+    if (context.role === "staff") {
+      if (id !== context.barber?.id) {
+        return { error: "Unauthorized: You can only update your own profile." };
+      }
+      const { error } = await client
+        .from("barbers")
+        .update({
+          name: input.name.trim(),
+          profile_photo_url: input.profile_photo_url?.trim() || null,
+          bio_en: input.bio_en?.trim() || null,
+          bio_hu: input.bio_hu?.trim() || null,
+        })
+        .eq("id", id)
+        .eq("business_id", context.business.id);
 
-  // 1. Insert Barber row
-  const { data: barber, error } = await supabase
-    .from("barbers")
-    .insert({
-      business_id: business.id,
-      user_id: input.user_id || null,
+      if (error) return { error: "Failed to update profile." };
+      revalidatePath("/admin/profile");
+      revalidatePath("/admin/barbers");
+      revalidatePath("/admin/appointments");
+      revalidatePath("/");
+      revalidatePath("/book");
+      return { success: true };
+    }
+
+    if (context.role !== "owner") {
+      return { error: "Unauthorized: Owner access required." };
+    }
+
+    const business = context.business;
+
+    if (!input.name?.trim()) {
+      return { error: "Barber name is required." };
+    }
+
+    // 1. Update Barber row
+    const updateData: TablesUpdate<"barbers"> = {
       name: input.name.trim(),
       profile_photo_url: input.profile_photo_url?.trim() || null,
       bio_en: input.bio_en?.trim() || null,
       bio_hu: input.bio_hu?.trim() || null,
       is_active: input.is_active ?? true,
       display_order: input.display_order ?? 0,
-    })
-    .select("*")
-    .single();
+    };
 
-  if (error || !barber) {
-    console.error("Failed to create barber", error?.message);
-    return { error: "Failed to create barber." };
-  }
-
-  // 2. Insert barber_services if provided
-  if (input.serviceIds && input.serviceIds.length > 0) {
-    const rows = input.serviceIds.map((serviceId) => ({
-      barber_id: barber.id,
-      service_id: serviceId,
-    }));
-
-    const { error: bsErr } = await supabase.from("barber_services").insert(rows);
-    if (bsErr) {
-      console.error("Failed to assign barber services", bsErr.message);
+    if (input.user_id !== undefined) {
+      updateData.user_id = input.user_id || null;
     }
-  }
 
-  revalidatePath("/admin/barbers");
-  revalidatePath("/admin/appointments");
-  revalidatePath("/");
-  revalidatePath("/book");
-
-  return { success: true, barber };
-}
-
-export async function updateBarberAction(id: string, input: BarberInput) {
-  const context = await getAdminContext();
-  if (!context) {
-    return { error: "Unauthorized." };
-  }
-
-  const supabase = await createClient();
-
-  // Staff can update their own profile fields via staff profile route
-  if (context.role === "staff") {
-    if (id !== context.barber?.id) {
-      return { error: "Unauthorized: You can only update your own profile." };
-    }
-    const { error } = await supabase
+    const { error } = await client
       .from("barbers")
-      .update({
-        name: input.name.trim(),
-        profile_photo_url: input.profile_photo_url?.trim() || null,
-        bio_en: input.bio_en?.trim() || null,
-        bio_hu: input.bio_hu?.trim() || null,
-      })
+      .update(updateData)
       .eq("id", id)
-      .eq("business_id", context.business.id);
+      .eq("business_id", business.id);
 
-    if (error) return { error: "Failed to update profile." };
-    revalidatePath("/admin/profile");
-    revalidatePath("/admin/barbers");
-    revalidatePath("/");
-    return { success: true };
-  }
-
-  if (context.role !== "owner") {
-    return { error: "Unauthorized: Owner access required." };
-  }
-
-  const business = context.business;
-
-  if (!input.name?.trim()) {
-    return { error: "Barber name is required." };
-  }
-
-  // 1. Update Barber row
-  const updateData: TablesUpdate<"barbers"> = {
-
-    name: input.name.trim(),
-    profile_photo_url: input.profile_photo_url?.trim() || null,
-    bio_en: input.bio_en?.trim() || null,
-    bio_hu: input.bio_hu?.trim() || null,
-    is_active: input.is_active ?? true,
-    display_order: input.display_order ?? 0,
-  };
-
-  if (input.user_id !== undefined) {
-    updateData.user_id = input.user_id || null;
-  }
-
-
-  const { error } = await supabase
-    .from("barbers")
-    .update(updateData)
-    .eq("id", id)
-    .eq("business_id", business.id);
-
-  if (error) {
-    console.error("Failed to update barber", error.message);
-    return { error: "Failed to update barber." };
-  }
-
-  // 2. Update service assignments if provided
-  if (input.serviceIds !== undefined) {
-    await supabase.from("barber_services").delete().eq("barber_id", id);
-
-    if (input.serviceIds.length > 0) {
-      const rows = input.serviceIds.map((serviceId) => ({
-        barber_id: id,
-        service_id: serviceId,
-      }));
-      await supabase.from("barber_services").insert(rows);
+    if (error) {
+      console.error("Failed to update barber", error.message);
+      return { error: "Failed to update barber." };
     }
+
+    // 2. Update service assignments if provided
+    if (input.serviceIds !== undefined) {
+      await client.from("barber_services").delete().eq("barber_id", id);
+
+      if (input.serviceIds.length > 0) {
+        const rows = input.serviceIds.map((serviceId) => ({
+          barber_id: id,
+          service_id: serviceId,
+        }));
+        await client.from("barber_services").insert(rows);
+      }
+    }
+
+    revalidatePath("/admin/barbers");
+    revalidatePath("/admin/appointments");
+    revalidatePath("/");
+    revalidatePath("/book");
+
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("Unexpected error in updateBarberAction:", err);
+    return {
+      error: err instanceof Error ? err.message : "An unexpected server error occurred.",
+    };
   }
-
-  revalidatePath("/admin/barbers");
-  revalidatePath("/admin/appointments");
-  revalidatePath("/");
-  revalidatePath("/book");
-
-  return { success: true };
 }
 
 
@@ -502,151 +520,248 @@ export async function deleteBarberAction(id: string) {
 }
 
 export async function uploadBarberProfilePhotoAction(formData: FormData) {
-  const context = await getAdminContext();
-  if (!context) {
-    return { error: "Unauthorized." };
-  }
-
-  const business = context.business;
-  const file = formData.get("file") as File | null;
-  const barberId = formData.get("barberId") as string | null;
-
-  if (!file || !barberId) {
-    return { error: "File and Barber ID are required." };
-  }
-
-  if (context.role === "staff" && barberId !== context.barber?.id) {
-    return { error: "Unauthorized: You can only upload your own profile photo." };
-  }
-
-  // 1. Validate file size (<= 5 MB)
-  const MAX_SIZE = 5 * 1024 * 1024;
-  if (file.size > MAX_SIZE) {
-    return { error: "File size exceeds maximum limit of 5 MB." };
-  }
-
-  // 2. Validate MIME type
-  const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-    return { error: "Invalid file type. Allowed formats: JPEG, PNG, WEBP." };
-  }
-
-  const supabase = await createClient();
-
-  // 3. Verify barber belongs to business
-  const { data: barber, error: barErr } = await supabase
-    .from("barbers")
-    .select("id, business_id, profile_photo_url")
-    .eq("id", barberId)
-    .single();
-
-  if (barErr || !barber || barber.business_id !== business.id) {
-    return { error: "Barber not found or unauthorized." };
-  }
-
-  // 4. File extension & storage path
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-  const storagePath = `${business.id}/${barber.id}/${fileName}`;
-
-  // 5. Convert file to Buffer
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  // 6. Upload file to barber-profiles bucket
-  const { error: uploadErr } = await supabase.storage
-    .from("barber-profiles")
-    .upload(storagePath, buffer, {
-      contentType: file.type,
-      upsert: true,
-    });
-
-  if (uploadErr) {
-    console.error("Storage upload error", uploadErr.message);
-    return { error: `Upload failed: ${uploadErr.message}` };
-  }
-
-  // 7. Get public URL
-  const { data: urlData } = supabase.storage
-    .from("barber-profiles")
-    .getPublicUrl(storagePath);
-
-  const publicUrl = urlData.publicUrl;
-
-  // 8. If old photo existed in storage, safely remove old object
-  if (barber.profile_photo_url && barber.profile_photo_url.includes("/barber-profiles/")) {
-    try {
-      const oldPath = barber.profile_photo_url.split("/barber-profiles/")[1];
-      if (oldPath && oldPath !== storagePath) {
-        await supabase.storage.from("barber-profiles").remove([oldPath]);
-      }
-    } catch (e) {
-      console.warn("Failed to remove old profile photo", e);
+  try {
+    const context = await getAdminContext();
+    if (!context) {
+      return { error: "Unauthorized." };
     }
+
+    const business = context.business;
+    const file = formData.get("file") as File | null;
+    const barberId = formData.get("barberId") as string | null;
+
+    if (!file || !barberId) {
+      return { error: "File and Barber ID are required." };
+    }
+
+    if (context.role === "staff" && barberId !== context.barber?.id) {
+      return { error: "Unauthorized: You can only upload your own profile photo." };
+    }
+
+    // 1. Validate file size (<= 10 MB)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      return { error: "File size exceeds maximum limit of 10 MB." };
+    }
+
+    // 2. Validate MIME type
+    const ALLOWED_MIME_TYPES = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "image/avif",
+    ];
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      return { error: "Invalid file type. Allowed formats: JPEG, PNG, WEBP, GIF, AVIF." };
+    }
+
+    // Prefer adminClient (service-role) on server to bypass storage RLS and bucket restrictions
+    const adminClient = createAdminClient();
+    const supabase = await createClient();
+    const client = adminClient ?? supabase;
+
+    // 3. Verify barber belongs to business
+    const { data: barber, error: barErr } = await client
+      .from("barbers")
+      .select("id, business_id, profile_photo_url")
+      .eq("id", barberId)
+      .single();
+
+    if (barErr || !barber || barber.business_id !== business.id) {
+      return { error: "Barber not found or unauthorized." };
+    }
+
+    // 4. File extension & file name
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const cleanFileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+
+    // 5. Convert file to Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    let publicUrl: string | null = null;
+    let uploadSuccessful = false;
+    let lastError: string | null = null;
+
+    // First attempt: try uploading to 'barber-profiles' bucket
+    const primaryStoragePath = `${business.id}/${barber.id}/${cleanFileName}`;
+    try {
+      if (adminClient) {
+        // Ensure bucket exists if using adminClient
+        const { data: bucketData } = await adminClient.storage.getBucket("barber-profiles");
+        if (!bucketData) {
+          await adminClient.storage.createBucket("barber-profiles", {
+            public: true,
+            fileSizeLimit: 10485760,
+            allowedMimeTypes: ALLOWED_MIME_TYPES,
+          });
+        }
+      }
+
+      const { error: uploadErr } = await client.storage
+        .from("barber-profiles")
+        .upload(primaryStoragePath, buffer, {
+          contentType: file.type,
+          upsert: true,
+        });
+
+      if (!uploadErr) {
+        const { data: urlData } = client.storage
+          .from("barber-profiles")
+          .getPublicUrl(primaryStoragePath);
+        publicUrl = urlData.publicUrl;
+        uploadSuccessful = true;
+      } else {
+        lastError = uploadErr.message;
+        console.warn("Upload to barber-profiles bucket failed, attempting portfolio fallback:", uploadErr.message);
+      }
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.warn("Exception uploading to barber-profiles bucket:", lastError);
+    }
+
+    // Fallback: If barber-profiles bucket failed or does not exist, upload to 'portfolio' bucket
+    if (!uploadSuccessful) {
+      try {
+        const fallbackStoragePath = `businesses/${business.id}/portfolio/barbers_${cleanFileName}`;
+        const { error: fallbackErr } = await client.storage
+          .from("portfolio")
+          .upload(fallbackStoragePath, buffer, {
+            contentType: file.type,
+            upsert: true,
+          });
+
+        if (!fallbackErr) {
+          const { data: urlData } = client.storage
+            .from("portfolio")
+            .getPublicUrl(fallbackStoragePath);
+          publicUrl = urlData.publicUrl;
+          uploadSuccessful = true;
+        } else {
+          lastError = fallbackErr.message;
+          console.error("Fallback upload to portfolio bucket failed:", fallbackErr.message);
+        }
+      } catch (fbErr: unknown) {
+        lastError = fbErr instanceof Error ? fbErr.message : String(fbErr);
+        console.error("Exception in fallback upload to portfolio bucket:", lastError);
+      }
+    }
+
+    if (!uploadSuccessful || !publicUrl) {
+      return { error: `Upload failed: ${lastError || "Could not save photo to storage."}` };
+    }
+
+    // 8. If old photo existed in storage, safely remove old object
+    if (barber.profile_photo_url) {
+      try {
+        if (barber.profile_photo_url.includes("/barber-profiles/")) {
+          const oldPath = barber.profile_photo_url.split("/barber-profiles/")[1];
+          if (oldPath && oldPath !== primaryStoragePath) {
+            await client.storage.from("barber-profiles").remove([oldPath]);
+          }
+        } else if (barber.profile_photo_url.includes("/portfolio/")) {
+          const oldPath = barber.profile_photo_url.split("/portfolio/")[1];
+          if (oldPath) {
+            await client.storage.from("portfolio").remove([oldPath]);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to remove old profile photo", e);
+      }
+    }
+
+    // 9. Update barber profile_photo_url in database
+    const { error: updateErr } = await client
+      .from("barbers")
+      .update({ profile_photo_url: publicUrl })
+      .eq("id", barber.id);
+
+    if (updateErr) {
+      console.error("Failed to update barber photo in database:", updateErr.message);
+      return { error: "Failed to save photo URL to barber profile: " + updateErr.message };
+    }
+
+    revalidatePath("/admin/barbers");
+    revalidatePath("/admin/profile");
+    revalidatePath("/admin/appointments");
+    revalidatePath("/");
+    revalidatePath("/book");
+
+    return { success: true, publicUrl };
+  } catch (globalErr: unknown) {
+    console.error("Unexpected error in uploadBarberProfilePhotoAction:", globalErr);
+    return {
+      error: globalErr instanceof Error ? globalErr.message : "An unexpected server error occurred during upload.",
+    };
   }
-
-  // 9. Update barber profile_photo_url
-  const { error: updateErr } = await supabase
-    .from("barbers")
-    .update({ profile_photo_url: publicUrl })
-    .eq("id", barber.id);
-
-  if (updateErr) {
-    return { error: "Failed to save photo URL to barber profile." };
-  }
-
-  revalidatePath("/admin/barbers");
-  revalidatePath("/admin/profile");
-  revalidatePath("/admin/appointments");
-  revalidatePath("/");
-  revalidatePath("/book");
-
-  return { success: true, publicUrl };
 }
 
 export async function deleteBarberProfilePhotoAction(barberId: string) {
-  const context = await getAdminContext();
-  if (!context) {
-    return { error: "Unauthorized." };
-  }
-
-  const business = context.business;
-
-  if (context.role === "staff" && barberId !== context.barber?.id) {
-    return { error: "Unauthorized: You can only remove your own profile photo." };
-  }
-
-  const supabase = await createClient();
-
-  const { data: barber, error: barErr } = await supabase
-    .from("barbers")
-    .select("id, business_id, profile_photo_url")
-    .eq("id", barberId)
-    .single();
-
-  if (barErr || !barber || barber.business_id !== business.id) {
-    return { error: "Barber not found." };
-  }
-
-  if (barber.profile_photo_url && barber.profile_photo_url.includes("/barber-profiles/")) {
-    const oldPath = barber.profile_photo_url.split("/barber-profiles/")[1];
-    if (oldPath) {
-      await supabase.storage.from("barber-profiles").remove([oldPath]);
+  try {
+    const context = await getAdminContext();
+    if (!context) {
+      return { error: "Unauthorized." };
     }
+
+    const business = context.business;
+
+    if (context.role === "staff" && barberId !== context.barber?.id) {
+      return { error: "Unauthorized: You can only remove your own profile photo." };
+    }
+
+    const adminClient = createAdminClient();
+    const supabase = await createClient();
+    const client = adminClient ?? supabase;
+
+    const { data: barber, error: barErr } = await client
+      .from("barbers")
+      .select("id, business_id, profile_photo_url")
+      .eq("id", barberId)
+      .single();
+
+    if (barErr || !barber || barber.business_id !== business.id) {
+      return { error: "Barber not found." };
+    }
+
+    if (barber.profile_photo_url) {
+      try {
+        if (barber.profile_photo_url.includes("/barber-profiles/")) {
+          const oldPath = barber.profile_photo_url.split("/barber-profiles/")[1];
+          if (oldPath) {
+            await client.storage.from("barber-profiles").remove([oldPath]);
+          }
+        } else if (barber.profile_photo_url.includes("/portfolio/")) {
+          const oldPath = barber.profile_photo_url.split("/portfolio/")[1];
+          if (oldPath) {
+            await client.storage.from("portfolio").remove([oldPath]);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to remove old profile photo from storage", e);
+      }
+    }
+
+    const { error: updateErr } = await client
+      .from("barbers")
+      .update({ profile_photo_url: null })
+      .eq("id", barber.id);
+
+    if (updateErr) {
+      return { error: "Failed to remove photo URL." };
+    }
+
+    revalidatePath("/admin/barbers");
+    revalidatePath("/admin/profile");
+    revalidatePath("/admin/appointments");
+    revalidatePath("/");
+    revalidatePath("/book");
+
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("Unexpected error in deleteBarberProfilePhotoAction:", err);
+    return {
+      error: err instanceof Error ? err.message : "An unexpected server error occurred.",
+    };
   }
-
-  const { error: updateErr } = await supabase
-    .from("barbers")
-    .update({ profile_photo_url: null })
-    .eq("id", barber.id);
-
-  if (updateErr) {
-    return { error: "Failed to remove photo URL." };
-  }
-
-  revalidatePath("/admin/barbers");
-  revalidatePath("/admin/profile");
-  revalidatePath("/");
-
-  return { success: true };
 }
