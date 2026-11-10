@@ -519,6 +519,47 @@ export async function deleteBarberAction(id: string) {
   return { success: true };
 }
 
+export async function saveBarberPhotoUrlAction(barberId: string, photoUrl: string | null) {
+  try {
+    const context = await getAdminContext();
+    if (!context) {
+      return { error: "Unauthorized." };
+    }
+
+    if (context.role === "staff" && barberId !== context.barber?.id) {
+      return { error: "Unauthorized: You can only update your own profile photo." };
+    }
+
+    const adminClient = createAdminClient();
+    const supabase = await createClient();
+    const client = adminClient ?? supabase;
+
+    const { error } = await client
+      .from("barbers")
+      .update({ profile_photo_url: photoUrl })
+      .eq("id", barberId)
+      .eq("business_id", context.business.id);
+
+    if (error) {
+      console.error("Failed to update barber photo URL:", error.message);
+      return { error: "Failed to update barber photo URL: " + error.message };
+    }
+
+    revalidatePath("/admin/barbers");
+    revalidatePath("/admin/profile");
+    revalidatePath("/admin/appointments");
+    revalidatePath("/");
+    revalidatePath("/book");
+
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("Unexpected error in saveBarberPhotoUrlAction:", err);
+    return {
+      error: err instanceof Error ? err.message : "An unexpected server error occurred.",
+    };
+  }
+}
+
 export async function uploadBarberProfilePhotoAction(formData: FormData) {
   try {
     const context = await getAdminContext();

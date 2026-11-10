@@ -4,6 +4,7 @@ import { requireAdminContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendNotificationEmail } from "@/lib/email/send";
 import type { NotificationJobRow } from "@/lib/email/types";
+import { DEMO_BUSINESS } from "@/lib/config/demo-content";
 
 export async function fetchNotificationLogsAction(params?: {
   status?: string;
@@ -63,7 +64,7 @@ export async function sendOwnerTestEmailAction() {
     timeStr: "14:30",
     durationMinutes: 45,
     studioName: context.business.name || "Barbod Barber",
-    studioAddress: context.business.address || "Andrássy út 12, Budapest",
+    studioAddress: context.business.address || DEMO_BUSINESS.address,
   };
 
   const result = await sendNotificationEmail({

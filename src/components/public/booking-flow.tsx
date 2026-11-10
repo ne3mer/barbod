@@ -15,6 +15,7 @@ import {
   Loader2,
   Scissors,
   Check,
+  MapPin,
 } from "lucide-react";
 
 import type { PublicBusiness, PublicBarber, PublicService } from "@/lib/public/business";
@@ -908,11 +909,19 @@ export function BookingFlow({
                 </span>
               </div>
 
-              <div className="space-y-1 sm:col-span-2">
+              <div className="space-y-1">
                 <span className="eyebrow block text-[10px]">{t.phoneNumber}</span>
                 <span className="font-medium text-foreground flex items-center gap-2 font-mono">
                   <Phone className="size-4 text-primary shrink-0" />
                   {customerPhone}
+                </span>
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <span className="eyebrow block text-[10px]">{t.address || (lang === "hu" ? "CÍM / HELYSZÍN" : "STUDIO LOCATION")}</span>
+                <span className="font-medium text-foreground flex items-center gap-2">
+                  <MapPin className="size-4 text-primary shrink-0" />
+                  {business.address?.trim() || DEMO_SERVICES[0] ? (business.address?.trim() || "Budapest, Hungary") : "Budapest, Hungary"}
                 </span>
               </div>
             </div>
@@ -1000,6 +1009,13 @@ export function BookingFlow({
               <span className="text-muted-foreground">{t.dateTimeLabel}:</span>
               <span className="font-mono font-semibold text-primary">
                 {confirmedBooking.dateStr} · {confirmedBooking.startTimeStr}
+              </span>
+            </div>
+
+            <div className="flex justify-between text-sm py-1 border-b border-white/5">
+              <span className="text-muted-foreground">{lang === "hu" ? "Helyszín" : "Location"}:</span>
+              <span className="font-medium text-foreground text-right truncate max-w-[260px]">
+                {business.address?.trim() || "Budapest, Hungary"}
               </span>
             </div>
 

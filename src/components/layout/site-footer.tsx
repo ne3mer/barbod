@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Scissors } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/context";
 
-export function SiteFooter() {
+export function SiteFooter({ address }: { address?: string | null }) {
   const { t } = useLanguage();
 
   return (
@@ -22,7 +22,7 @@ export function SiteFooter() {
               </span>
             </Link>
             <p className="text-xs text-muted-foreground max-w-md leading-relaxed">
-              Budapest, Hungary · Premium Barbershop & Precision Grooming Atelier
+              {address?.trim() ? `${address.trim()} · ` : ""}Budapest, Hungary · Premium Barbershop & Precision Grooming Atelier
             </p>
           </div>
 
@@ -50,7 +50,7 @@ export function SiteFooter() {
 
         <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2">
           <p>© {new Date().getFullYear()} Barbod Barber. All rights reserved.</p>
-          <p className="text-xs text-muted-foreground/75 font-mono">Budapest, Europe/Budapest</p>
+          <p className="text-xs text-muted-foreground/75 font-mono">{address?.trim() || "Budapest, Europe/Budapest"}</p>
         </div>
       </div>
     </footer>

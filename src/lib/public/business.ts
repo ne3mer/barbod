@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Tables } from "@/types/database";
 import {
   DEMO_BUSINESS,
@@ -16,14 +17,27 @@ export type PublicWorkingHours = Tables<"working_hours">;
 
 export async function getPublicBusiness(slug = "barbod-barber"): Promise<PublicBusiness | null> {
   const supabase = await createClient();
+  const adminClient = createAdminClient();
+  const client = adminClient ?? supabase;
 
-  const { data, error } = await supabase
+  let { data, error } = await client
     .from("businesses")
     .select("*")
     .eq("slug", slug)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) {
+  // If business was not found by explicit slug, fallback to the primary business in the db
+  if (!data) {
+    const { data: firstBiz } = await client
+      .from("businesses")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    data = firstBiz;
+  }
+
+  if (!data) {
     console.error("Failed to load public business by slug", error?.message);
     // Return high-quality demo business fallback
     return {
@@ -35,7 +49,7 @@ export async function getPublicBusiness(slug = "barbod-barber"): Promise<PublicB
       description_hu: DEMO_BUSINESS.descriptionHu,
       phone: DEMO_BUSINESS.phone,
       email: DEMO_BUSINESS.email,
-      address: `${DEMO_BUSINESS.address}, ${DEMO_BUSINESS.district}`,
+      address: DEMO_BUSINESS.address,
       instagram_url: DEMO_BUSINESS.instagramUrl,
       logo_url: null,
       created_at: new Date().toISOString(),
@@ -43,15 +57,15 @@ export async function getPublicBusiness(slug = "barbod-barber"): Promise<PublicB
     };
   }
 
-  // Ensure fields are rich and realistic if placeholder values exist
+  // Ensure fields use real database values, with fallback to demo only when blank
   return {
     ...data,
     name: data.name || DEMO_BUSINESS.name,
     description_en: data.description_en || DEMO_BUSINESS.descriptionEn,
     description_hu: data.description_hu || DEMO_BUSINESS.descriptionHu,
-    phone: data.phone?.length && !data.phone.includes("201930123") ? data.phone : DEMO_BUSINESS.phone,
-    email: data.email?.includes("@") && !data.email.includes("nasjdj") ? data.email : DEMO_BUSINESS.email,
-    address: data.address && !data.address.includes("asldkl") ? data.address : `${DEMO_BUSINESS.address}, ${DEMO_BUSINESS.district}`,
+    phone: data.phone || DEMO_BUSINESS.phone,
+    email: data.email || DEMO_BUSINESS.email,
+    address: data.address?.trim() || DEMO_BUSINESS.address,
     instagram_url: data.instagram_url || DEMO_BUSINESS.instagramUrl,
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Save, CheckCircle2, AlertCircle, Building2 } from "lucide-react";
 
 import type { AdminBusiness } from "@/lib/auth/session";
@@ -11,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateBusinessSettingsAction } from "@/app/admin/(dashboard)/settings/actions";
 
 export function SettingsEditor({ business }: { business: AdminBusiness }) {
+  const router = useRouter();
   const [name, setName] = React.useState(business.name);
   const [descEn, setDescEn] = React.useState(business.description_en ?? "");
   const [descHu, setDescHu] = React.useState(business.description_hu ?? "");
@@ -26,29 +28,46 @@ export function SettingsEditor({ business }: { business: AdminBusiness }) {
   const [successMsg, setSuccessMsg] = React.useState<string | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
+  // Sync state when incoming business prop changes
+  React.useEffect(() => {
+    setName(business.name);
+    setDescEn(business.description_en ?? "");
+    setDescHu(business.description_hu ?? "");
+    setPhone(business.phone ?? "");
+    setEmail(business.email ?? "");
+    setAddress(business.address ?? "");
+    setInstagramUrl(business.instagram_url ?? "");
+    setLogoUrl(business.logo_url ?? "");
+  }, [business]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSuccessMsg(null);
     setErrorMsg(null);
 
-    const res = await updateBusinessSettingsAction({
-      name,
-      description_en: descEn,
-      description_hu: descHu,
-      phone,
-      email,
-      address,
-      instagram_url: instagramUrl,
-      logo_url: logoUrl,
-    });
+    try {
+      const res = await updateBusinessSettingsAction({
+        name,
+        description_en: descEn,
+        description_hu: descHu,
+        phone,
+        email,
+        address,
+        instagram_url: instagramUrl,
+        logo_url: logoUrl,
+      });
 
-    setSaving(false);
-
-    if (res.error) {
-      setErrorMsg(res.error);
-    } else {
-      setSuccessMsg("Business profile updated successfully!");
+      if (res.error) {
+        setErrorMsg(res.error);
+      } else {
+        setSuccessMsg("Business profile updated successfully!");
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to update business settings.");
+    } finally {
+      setSaving(false);
     }
   };
 

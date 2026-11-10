@@ -81,6 +81,13 @@ export function PublicHome({
     return supabase.storage.from("portfolio").getPublicUrl(path).data.publicUrl;
   };
 
+  const currentAddress = business.address?.trim() || DEMO_BUSINESS.address;
+  const currentPhone = business.phone?.trim() || DEMO_BUSINESS.phone;
+  const currentEmail = business.email?.trim() || DEMO_BUSINESS.email;
+  const googleMapsUrl = business.address?.trim()
+    ? `https://maps.google.com/?q=${encodeURIComponent(business.address.trim())}`
+    : DEMO_BUSINESS.googleMapsUrl;
+
   const categories = React.useMemo(() => {
     const set = new Set<string>();
     portfolio.forEach((p) => {
@@ -172,7 +179,7 @@ export function PublicHome({
                 <div className="hidden sm:block h-3.5 w-px bg-white/10" />
                 <div className="flex items-center gap-1.5">
                   <MapPin className="size-3.5 text-primary" />
-                  <span>District VI · Terézváros</span>
+                  <span>{currentAddress}</span>
                 </div>
                 <div className="hidden sm:block h-3.5 w-px bg-white/10" />
                 <div className="flex items-center gap-1.5">
@@ -194,9 +201,9 @@ export function PublicHome({
                 <div className="absolute bottom-6 left-6 right-6 p-4 rounded-sm bg-black/80 backdrop-blur-md border border-white/10 text-white flex items-center justify-between">
                   <div>
                     <span className="text-[10px] font-mono uppercase tracking-widest text-primary block">
-                      BUDAPEST ATELIER
+                      {lang === "hu" ? "BUDAPESTI ATELIER" : "BUDAPEST ATELIER"}
                     </span>
-                    <span className="font-serif text-sm tracking-wide">Paulay Ede utca 16</span>
+                    <span className="font-serif text-sm tracking-wide">{currentAddress}</span>
                   </div>
                   <Link href="/book">
                     <span className="text-xs uppercase tracking-wider font-semibold text-primary hover:underline flex items-center gap-1">
@@ -619,13 +626,15 @@ export function PublicHome({
             <div className="space-y-2 border-b border-white/10 pb-6">
               <div className="inline-flex items-center gap-2 text-xs font-mono font-semibold uppercase tracking-wider text-primary">
                 <Navigation className="size-3.5" />
-                <span>{DEMO_BUSINESS.district}</span>
+                <span>{currentAddress}</span>
               </div>
               <h3 className="text-3xl font-normal tracking-tight text-foreground font-serif">
                 {t.locationTitle}
               </h3>
               <p className="text-xs text-muted-foreground font-light">
-                {lang === "hu" ? DEMO_BUSINESS.landmarkHu : DEMO_BUSINESS.landmarkEn}
+                {lang === "hu"
+                  ? `Látogasson el hozzánk: ${currentAddress}`
+                  : `Visit our atelier at ${currentAddress}`}
               </p>
             </div>
 
@@ -636,10 +645,9 @@ export function PublicHome({
                 </div>
                 <div>
                   <span className="eyebrow block mb-1">{t.address}</span>
-                  <span className="font-medium text-foreground text-base block">{DEMO_BUSINESS.address}</span>
-                  <span className="text-xs text-muted-foreground block mt-0.5">{DEMO_BUSINESS.district}</span>
-                  <span className="text-[11px] font-mono text-primary/80 block mt-1">
-                    {lang === "hu" ? DEMO_BUSINESS.transitHu : DEMO_BUSINESS.transitEn}
+                  <span className="font-medium text-foreground text-base block">{currentAddress}</span>
+                  <span className="text-xs text-muted-foreground block mt-0.5 font-mono">
+                    Budapest, Hungary
                   </span>
                 </div>
               </div>
@@ -652,10 +660,10 @@ export function PublicHome({
                   <div className="min-w-0">
                     <span className="eyebrow block mb-0.5">{t.phone}</span>
                     <a
-                      href={`tel:${DEMO_BUSINESS.phone}`}
+                      href={`tel:${currentPhone.replace(/\s+/g, "")}`}
                       className="font-mono text-sm text-foreground hover:text-primary transition-colors block truncate font-medium"
                     >
-                      {DEMO_BUSINESS.phone}
+                      {currentPhone}
                     </a>
                   </div>
                 </div>
@@ -667,10 +675,10 @@ export function PublicHome({
                   <div className="min-w-0">
                     <span className="eyebrow block mb-0.5">{t.email}</span>
                     <a
-                      href={`mailto:${DEMO_BUSINESS.email}`}
+                      href={`mailto:${currentEmail}`}
                       className="font-mono text-xs text-foreground hover:text-primary transition-colors block truncate font-medium"
                     >
-                      {DEMO_BUSINESS.email}
+                      {currentEmail}
                     </a>
                   </div>
                 </div>
@@ -679,7 +687,7 @@ export function PublicHome({
               {/* Google Maps link */}
               <div className="pt-2">
                 <a
-                  href={DEMO_BUSINESS.googleMapsUrl}
+                  href={googleMapsUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full"
@@ -712,7 +720,7 @@ export function PublicHome({
       <section className="mx-auto max-w-7xl px-4 sm:px-6 w-full min-w-0">
         <div className="rounded-sm border border-white/15 bg-card p-8 sm:p-20 text-center space-y-6 sm:space-y-8 relative overflow-hidden shadow-2xl min-w-0">
           <div className="space-y-3 min-w-0">
-            <span className="eyebrow block">BUDAPEST BARBER ATELIER · PAULAY EDE UTCA 16</span>
+            <span className="eyebrow block">BUDAPEST BARBER ATELIER · {currentAddress.toUpperCase()}</span>
             <h2 className="text-3xl sm:text-6xl lg:text-7xl font-light tracking-tight font-serif max-w-3xl mx-auto uppercase leading-[0.98] break-words">
               READY FOR
               <br />

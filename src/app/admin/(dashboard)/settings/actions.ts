@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { getAdminContext, getOwnedBusiness, requireAuthUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { isValidEmail, updateAuthUserEmail } from "@/lib/supabase/admin";
+import { isValidEmail, updateAuthUserEmail, createAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 
 export type BusinessSettingsInput = {
@@ -20,9 +20,11 @@ export type BusinessSettingsInput = {
 
 export async function updateBusinessSettingsAction(data: BusinessSettingsInput) {
   const user = await requireAuthUser();
-  const business = await getOwnedBusiness(user.id);
+  const context = await getAdminContext();
+  const business = context?.business ?? (await getOwnedBusiness(user.id));
 
-  if (!business) {
+  const targetBusinessId = business?.id;
+  if (!targetBusinessId) {
     return { error: "No business linked to user account." };
   }
 
@@ -31,8 +33,10 @@ export async function updateBusinessSettingsAction(data: BusinessSettingsInput) 
   }
 
   const supabase = await createClient();
+  const adminClient = createAdminClient();
+  const client = adminClient ?? supabase;
 
-  const { error } = await supabase
+  const { error } = await client
     .from("businesses")
     .update({
       name: data.name.trim(),
@@ -44,17 +48,21 @@ export async function updateBusinessSettingsAction(data: BusinessSettingsInput) 
       instagram_url: data.instagram_url?.trim() || null,
       logo_url: data.logo_url?.trim() || null,
     })
-    .eq("id", business.id)
-    .eq("owner_id", user.id);
+    .eq("id", targetBusinessId);
 
   if (error) {
     console.error("Failed to update business settings", error.message);
     return { error: error.message };
   }
 
-  revalidatePath("/admin/settings");
-  revalidatePath("/admin");
+  revalidatePath("/", "layout");
   revalidatePath("/");
+  revalidatePath("/book");
+  revalidatePath("/admin", "layout");
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/barbers");
+  revalidatePath("/admin/appointments");
+  revalidatePath("/admin/profile");
   return { success: true };
 }
 
@@ -105,6 +113,9 @@ export async function changeOwnerLoginEmailAction(newEmail: string, currentPassw
       .eq("id", context.business.id);
   }
 
+  revalidatePath("/", "layout");
+  revalidatePath("/");
+  revalidatePath("/book");
   revalidatePath("/admin/settings");
   revalidatePath("/admin/barbers");
   revalidatePath("/admin");
